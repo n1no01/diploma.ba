@@ -18,7 +18,7 @@ export async function sendCertificateEmail({
   verifyToken: certificateHash, // Mapiramo token na certificateHash
 }: SendCertificateEmailParams) {
   // Generisemo link koristeći hash umjesto tokena
-  const verifyUrl = `${process.env.NEXT_PUBLIC_APP_URL}/verify?hash=${certificateHash}`;
+  const verifyUrl = `${process.env.NEXT_PUBLIC_APP_URL}/verifikuj?hash=${certificateHash}`;
 
   try {
     const data = await resend.emails.send({

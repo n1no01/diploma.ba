@@ -59,18 +59,19 @@ export const authOptions: NextAuthOptions = {
         try {
           const client = await pool.connect();
           
-          // Provjeravamo da li institucija već postoji u bazi
           const existing = await client.query(
             'SELECT * FROM institutions WHERE email = $1',
             [user.email]
           );
 
           if (existing.rows.length === 0) {
-            // Ako ne postoji, automatski upisujemo novu instituciju u bazu
+            // Nova institucija se registruje preko Google-a, ali je AUTOMATSKI NEOUTORIZOVANA (is_approved = false)
             await client.query(
-              'INSERT INTO institutions (name, email, password_hash, created_at) VALUES ($1, $2, $3, NOW())',
+              'INSERT INTO institutions (name, email, password_hash, is_approved, created_at) VALUES ($1, $2, $3, FALSE, NOW())',
               [user.name || user.email, user.email, 'GOOGLE_OAUTH_ACCOUNT']
             );
+          } else {
+            // Opciono: Možeš provjeriti da li je odobren, mada rute za izdavanje već provjeravaju is_approved
           }
           
           client.release();

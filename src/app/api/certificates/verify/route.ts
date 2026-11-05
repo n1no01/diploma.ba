@@ -55,7 +55,7 @@ export async function GET(request: Request) {
     const client = await pool.connect();
     const result = await client.query(
       `SELECT 
-         c.id, c.student_name, c.student_email, c.identifier, 
+         c.id, c.student_name, c.identifier, 
          i.name AS institution_name, c.certificate_type, c.metadata, 
          c.certificate_hash, c.tx_hash, c.status, c.created_at 
        FROM certificates c

@@ -3,28 +3,44 @@ pragma solidity ^0.8.0;
 
 contract CertificateRegistry {
     address public owner;
-    // Mapiranje: Certificate Hash -> Da li je validan
     mapping(string => bool) public validCertificates;
+    mapping(string => bool) public revokedCertificates;
 
     event CertificateRegistered(string certificateHash);
+    event CertificateRevoked(string certificateHash);
+    event BatchCertificatesRegistered(uint256 count);
 
     constructor() {
         owner = msg.sender;
     }
 
     modifier onlyOwner() {
-        require(msg.sender == owner, "Samo vlasnik moze registrovati certifikat");
+        require(msg.sender == owner, "Samo vlasnik");
         _;
     }
 
-    // Funkcija za upis hash-a na blockchain
-    function registerCertificate(string memory certHash) public onlyOwner {
+    function registerCertificate(string memory certHash) public {
         validCertificates[certHash] = true;
+        revokedCertificates[certHash] = false;
         emit CertificateRegistered(certHash);
     }
 
-    // Funkcija za provjeru validnosti
-    function verifyCertificate(string memory certHash) public view returns (bool) {
-        return validCertificates[certHash];
+    function registerBatch(string[] memory certHashes) public {
+        for (uint i = 0; i < certHashes.length; i++) {
+            validCertificates[certHashes[i]] = true;
+            revokedCertificates[certHashes[i]] = false;
+            emit CertificateRegistered(certHashes[i]);
+        }
+        emit BatchCertificatesRegistered(certHashes.length);
+    }
+
+    function revokeCertificate(string memory certHash) public onlyOwner {
+        validCertificates[certHash] = false;
+        revokedCertificates[certHash] = true;
+        emit CertificateRevoked(certHash);
+    }
+
+    function verifyCertificate(string memory certHash) public view returns (bool isValid, bool isRevoked) {
+        return (validCertificates[certHash], revokedCertificates[certHash]);
     }
 }

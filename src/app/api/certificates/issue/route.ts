@@ -9,12 +9,12 @@ const pool = new Pool({
   connectionString: process.env.DATABASE_URL,
 });
 
-// ABI tačno za naš deployani CertificateRegistry ugovor
 const CONTRACT_ABI = [
   "function registerCertificate(string memory certHash) public"
 ];
 
 export async function POST(req: Request) {
+  let client;
   try {
     const session = await getServerSession();
     if (!session || !session.user?.email) {
@@ -22,7 +22,7 @@ export async function POST(req: Request) {
     }
 
     const institutionEmail = session.user.email;
-    const client = await pool.connect();
+    client = await pool.connect();
 
     const instCheck = await client.query(
       'SELECT id, is_approved, name FROM institutions WHERE email = $1',
@@ -53,35 +53,43 @@ export async function POST(req: Request) {
 
     const validMetadata = metadata && typeof metadata === 'object' ? metadata : {};
     const metadataString = JSON.stringify(validMetadata);
+    const cleanIdentifier = identifier ? identifier.trim() : '';
 
+    // 1. KANONSKI HASH: Determinističko računanje bez Date.now() i Math.random()
+    // Svaki put kada se ovi isti podaci unesu, dobiće se identičan hash za verifikaciju!
+    const canonicalString = `${institutionId}|${studentName.toLowerCase().trim()}|${studentEmail.toLowerCase().trim()}|${cleanIdentifier}|${metadataString}`;
     const certificateHash = crypto
       .createHash('sha256')
-      .update(`${institutionId}-${studentName}-${studentEmail}-${identifier || 'no-id'}-${metadataString}-${Date.now()}`)
+      .update(canonicalString)
       .digest('hex');
 
-    // Upis na Sepoliju preko CertificateRegistry ugovora
-    let txHash: string | null = null;
+    // 2. PROVERA BLOKČEJN VARIJABLI (Nema tihog preskakanja)
+    const rpcUrl = process.env.SEPOLIA_RPC_URL || process.env.BLOCKCHAIN_RPC_URL;
+    const contractAddress = process.env.CONTRACT_ADDRESS;
+    const adminPrivateKey = process.env.ADMIN_PRIVATE_KEY;
+
+    if (!rpcUrl || !contractAddress || !adminPrivateKey) {
+      client.release();
+      return NextResponse.json(
+        { error: 'Sistemska greška: Nedostaju konfiguracioni parametri za blockchain.' },
+        { status: 500 }
+      );
+    }
+
+    let txHash: string;
     try {
-      const rpcUrl = process.env.SEPOLIA_RPC_URL;
-      const contractAddress = process.env.CONTRACT_ADDRESS;
+      const provider = new ethers.JsonRpcProvider(rpcUrl);
+      const wallet = new ethers.Wallet(adminPrivateKey, provider);
+      const contract = new ethers.Contract(contractAddress, CONTRACT_ABI, wallet);
 
-      if (rpcUrl && process.env.ADMIN_PRIVATE_KEY && contractAddress) {
-        const provider = new ethers.JsonRpcProvider(rpcUrl);
-        const wallet = new ethers.Wallet(process.env.ADMIN_PRIVATE_KEY, provider);
-
-        const contract = new ethers.Contract(contractAddress, CONTRACT_ABI, wallet);
-
-        // Pozivamo tačno funkciju iz tvog deployanog ugovora
-        const tx = await contract.registerCertificate(certificateHash);
-        const receipt = await tx.wait();
-        
-        txHash = receipt?.hash || tx.hash;
-      }
-    } catch (bcError) {
+      const tx = await contract.registerCertificate(certificateHash);
+      const receipt = await tx.wait();
+      txHash = receipt?.hash || tx.hash;
+    } catch (bcError: any) {
       client.release();
       console.error('Blockchain greška:', bcError);
       return NextResponse.json(
-        { error: 'Greška pri upisu na blockchain: ' + (bcError as any).message },
+        { error: 'Greška pri upisu na blockchain: ' + bcError.message },
         { status: 500 }
       );
     }
@@ -96,9 +104,14 @@ export async function POST(req: Request) {
     `;
     
     const values = [
-      studentName, studentEmail, identifier ? identifier.trim() : null,
-      certificateType || 'Diploma o završenom studiju', institutionId, 
-      metadataString, certificateHash, txHash
+      studentName.trim(), 
+      studentEmail.trim(), 
+      cleanIdentifier || null,
+      certificateType || 'Diploma o završenom studiju', 
+      institutionId, 
+      metadataString, 
+      certificateHash, 
+      txHash
     ];
 
     const result = await client.query(queryText, values);
@@ -106,7 +119,9 @@ export async function POST(req: Request) {
 
     try {
       await sendCertificateEmail({
-        studentEmail, studentName, institutionName,
+        studentEmail: studentEmail.trim(), 
+        studentName: studentName.trim(), 
+        institutionName,
         certificateTitle: certificateType || 'Diploma / Certifikat',
         verifyToken: certificateHash,
       });
@@ -116,12 +131,13 @@ export async function POST(req: Request) {
 
     return NextResponse.json({
       success: true,
-      message: 'Certifikat uspješno izdan i zaveden na Sepoliju!',
+      message: 'Certifikat uspješno izdan i zaveden na blockchain!',
       certificateId: result.rows[0].id,
       txHash,
     });
 
   } catch (error: any) {
+    if (client) client.release();
     console.error('Greška:', error);
     return NextResponse.json({ error: 'Greška: ' + error.message }, { status: 500 });
   }
