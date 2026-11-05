@@ -1,17 +1,16 @@
 import { NextResponse } from 'next/server';
 import { Pool } from 'pg';
-import crypto from 'crypto';
 import { ethers } from 'ethers';
 import { sendCertificateEmail } from '../../../lib/email';
 import { getServerSession } from 'next-auth';
+import { computeCertHash } from '../../../lib/certHash';
 
 const pool = new Pool({
   connectionString: process.env.DATABASE_URL,
 });
 
 const CONTRACT_ABI = [
-  "function registerBatch(string[] memory certHashes) public",
-  "function registerCertificate(string memory certHash) public"
+  "function registerBatch(string[] memory certHashes) public"
 ];
 
 export async function POST(request: Request) {
@@ -52,22 +51,25 @@ export async function POST(request: Request) {
       );
     }
 
+    const finalCertType = certificateType || 'Diploma o završenom studiju';
     const validMetadata = metadata && typeof metadata === 'object' ? metadata : {};
     const metadataString = JSON.stringify(validMetadata);
 
-    // 1. KANONSKI HASH ZA SVAKOG STUDENTA (Bez Date.now() i Math.random())
     const processedRecipients = recipients
       .filter((r: any) => r.name && r.email)
       .map((r: any) => {
         const studentName = r.name.trim();
         const studentEmail = r.email.trim();
         const identifier = r.identifier ? r.identifier.trim() : '';
-        
-        const canonicalString = `${institutionId}|${studentName.toLowerCase()}|${studentEmail.toLowerCase()}|${identifier}|${metadataString}`;
-        const certificateHash = crypto
-          .createHash('sha256')
-          .update(canonicalString)
-          .digest('hex');
+
+        const certificateHash = computeCertHash({
+          institutionId,
+          studentName,
+          studentEmail,
+          certificateType: finalCertType,
+          identifier,
+          metadata: validMetadata,
+        });
 
         return {
           name: studentName,
@@ -83,7 +85,6 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Nema validnih primatelja sa imenom i emailom.' }, { status: 400 });
     }
 
-    // 2. OBAVEZNA PROVERA BLOKČEJN VARIJABLI (Nema tihog preskakanja)
     const rpcUrl = process.env.SEPOLIA_RPC_URL || process.env.BLOCKCHAIN_RPC_URL;
     const contractAddress = process.env.CONTRACT_ADDRESS;
     const adminPrivateKey = process.env.ADMIN_PRIVATE_KEY;
@@ -91,7 +92,7 @@ export async function POST(request: Request) {
     if (!rpcUrl || !contractAddress || !adminPrivateKey) {
       client.release();
       return NextResponse.json(
-        { error: 'Sistemska greška: Nedostaju konfiguracioni parametri za blockchain.' },
+        { error: 'Sistemska greška: Nedostaju blockchain parametri.' },
         { status: 500 }
       );
     }
@@ -103,18 +104,16 @@ export async function POST(request: Request) {
       const contract = new ethers.Contract(contractAddress, CONTRACT_ABI, wallet);
 
       const allHashes = processedRecipients.map((r) => r.certificateHash);
-
-      // Batch transakcija (Sve u jednoj transakciji na blockchainu)
       const tx = await contract.registerBatch(allHashes);
       const receipt = await tx.wait();
       txHash = receipt?.hash || tx.hash;
     } catch (bcErr: any) {
       client.release();
       console.error('Blockchain greška pri batch izdavanju:', bcErr);
-      return NextResponse.json({ error: 'Blockchain greška (Smart Contract): ' + bcErr.message }, { status: 500 });
+      return NextResponse.json({ error: 'Blockchain greška pri izdavanju.' }, { status: 500 });
     }
 
-    // 3. Upis u bazu unutar transakcije
+    // Upis u bazu unutar transakcije (sa jednim oslobađanjem klijenta na kraju)
     try {
       await client.query('BEGIN');
       const insertedCertificates = [];
@@ -122,42 +121,27 @@ export async function POST(request: Request) {
       for (const recipient of processedRecipients) {
         const query = `
           INSERT INTO certificates (
-            institution_id, 
-            certificate_type, 
-            student_name, 
-            student_email, 
-            identifier,
-            metadata,
-            certificate_hash, 
-            tx_hash,
-            status,
-            created_at
+            institution_id, certificate_type, student_name, student_email, 
+            identifier, metadata, certificate_hash, tx_hash, status, created_at
           )
           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, 'active', NOW())
           RETURNING id, student_name, student_email, identifier, metadata, certificate_hash, tx_hash;
         `;
 
         const values = [
-          institutionId, 
-          certificateType, 
-          recipient.name, 
-          recipient.email, 
-          recipient.identifier, 
-          recipient.metadata,
-          recipient.certificateHash, 
-          txHash,
+          institutionId, finalCertType, recipient.name, recipient.email, 
+          recipient.identifier, recipient.metadata, recipient.certificateHash, txHash,
         ];
         
         const res = await client.query(query, values);
         insertedCertificates.push(res.rows[0]);
 
-        // Slanje emaila studentu
         try {
           await sendCertificateEmail({
             studentEmail: recipient.email,
             studentName: recipient.name,
             institutionName: verifiedInstitutionName,
-            certificateTitle: certificateType,
+            certificateTitle: finalCertType,
             verifyToken: recipient.certificateHash,
           });
         } catch (mailErr) {
@@ -183,7 +167,7 @@ export async function POST(request: Request) {
 
   } catch (error: unknown) {
     if (client) client.release();
-    const errorMessage = error instanceof Error ? error.message : 'Greška pri masovnom izdavanju';
-    return NextResponse.json({ error: errorMessage }, { status: 500 });
+    console.error('Greška pri masovnom izdavanju:', error);
+    return NextResponse.json({ error: 'Interna greška na serveru.' }, { status: 500 });
   }
 }

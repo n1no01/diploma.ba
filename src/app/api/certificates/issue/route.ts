@@ -1,9 +1,9 @@
 import { NextResponse } from 'next/server';
 import { Pool } from 'pg';
-import crypto from 'crypto';
 import { ethers } from 'ethers';
 import { sendCertificateEmail } from '../../../lib/email';
 import { getServerSession } from 'next-auth';
+import { computeCertHash } from '../../../lib/certHash'; // ili odgovarajuća putanja
 
 const pool = new Pool({
   connectionString: process.env.DATABASE_URL,
@@ -51,19 +51,21 @@ export async function POST(req: Request) {
       );
     }
 
+    const finalCertType = certificateType || 'Diploma o završenom studiju';
     const validMetadata = metadata && typeof metadata === 'object' ? metadata : {};
     const metadataString = JSON.stringify(validMetadata);
     const cleanIdentifier = identifier ? identifier.trim() : '';
 
-    // 1. KANONSKI HASH: Determinističko računanje bez Date.now() i Math.random()
-    // Svaki put kada se ovi isti podaci unesu, dobiće se identičan hash za verifikaciju!
-    const canonicalString = `${institutionId}|${studentName.toLowerCase().trim()}|${studentEmail.toLowerCase().trim()}|${cleanIdentifier}|${metadataString}`;
-    const certificateHash = crypto
-      .createHash('sha256')
-      .update(canonicalString)
-      .digest('hex');
+    // Računanje hasha preko centralne funkcije
+    const certificateHash = computeCertHash({
+      institutionId,
+      studentName,
+      studentEmail,
+      certificateType: finalCertType,
+      identifier: cleanIdentifier,
+      metadata: validMetadata,
+    });
 
-    // 2. PROVERA BLOKČEJN VARIJABLI (Nema tihog preskakanja)
     const rpcUrl = process.env.SEPOLIA_RPC_URL || process.env.BLOCKCHAIN_RPC_URL;
     const contractAddress = process.env.CONTRACT_ADDRESS;
     const adminPrivateKey = process.env.ADMIN_PRIVATE_KEY;
@@ -89,7 +91,7 @@ export async function POST(req: Request) {
       client.release();
       console.error('Blockchain greška:', bcError);
       return NextResponse.json(
-        { error: 'Greška pri upisu na blockchain: ' + bcError.message },
+        { error: 'Greška pri upisu na blockchain.' },
         { status: 500 }
       );
     }
@@ -107,7 +109,7 @@ export async function POST(req: Request) {
       studentName.trim(), 
       studentEmail.trim(), 
       cleanIdentifier || null,
-      certificateType || 'Diploma o završenom studiju', 
+      finalCertType, 
       institutionId, 
       metadataString, 
       certificateHash, 
@@ -122,7 +124,7 @@ export async function POST(req: Request) {
         studentEmail: studentEmail.trim(), 
         studentName: studentName.trim(), 
         institutionName,
-        certificateTitle: certificateType || 'Diploma / Certifikat',
+        certificateTitle: finalCertType,
         verifyToken: certificateHash,
       });
     } catch (emailErr) {
@@ -139,6 +141,6 @@ export async function POST(req: Request) {
   } catch (error: any) {
     if (client) client.release();
     console.error('Greška:', error);
-    return NextResponse.json({ error: 'Greška: ' + error.message }, { status: 500 });
+    return NextResponse.json({ error: 'Interna greška na serveru.' }, { status: 500 });
   }
 }
