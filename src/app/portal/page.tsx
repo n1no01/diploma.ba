@@ -59,8 +59,8 @@ export default function DashboardPage() {
     }
   }, [session]);
 
-  // Funkcija za opoziv (poništenje) certifikata
-  async function handleRevoke(certificateId: number) {
+  // Funkcija za opoziv (poništenje) certifikata - sada prima certificateHash
+  async function handleRevoke(certificateHash: string) {
     if (!confirm('Da li ste sigurni da želite trajno poništiti ovaj certifikat? Ova akcija se ne može poništiti.')) {
       return;
     }
@@ -69,13 +69,13 @@ export default function DashboardPage() {
       const res = await fetch('/api/certificates/revoke', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ certificateId }),
+        body: JSON.stringify({ certificateHash }), // Šaljemo hash u skladu sa backend rutom
       });
 
       const data = await res.json();
 
-      if (data.success) {
-        alert('Certifikat je uspješno poništen.');
+      if (res.ok && data.success) {
+        alert('Certifikat je uspješno poništen na blockchain mreži i u bazi.');
         fetchData(); // Ponovo učitaj podatke da se osvježi status
       } else {
         alert(data.error || 'Došlo je do greške.');
@@ -307,7 +307,7 @@ export default function DashboardPage() {
                     <td className="px-6 py-4 text-right">
                       {cert.status !== 'revoked' && (
                         <button
-                          onClick={() => handleRevoke(cert.id)}
+                          onClick={() => handleRevoke(cert.certificate_hash)}
                           className="px-3 py-1.5 rounded-xl text-xs font-semibold bg-rose-50 text-rose-600 hover:bg-rose-600 hover:text-white transition border border-rose-200 cursor-pointer"
                         >
                           Poništi

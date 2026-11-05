@@ -13,6 +13,8 @@ const CONTRACT_ABI = [
   "function registerBatch(string[] memory certHashes) public"
 ];
 
+const MAX_BATCH_SIZE = 100; // Ograničenje zbog gas limita na mreži
+
 export async function POST(request: Request) {
   let client;
   try {
@@ -51,6 +53,14 @@ export async function POST(request: Request) {
       );
     }
 
+    if (recipients.length > MAX_BATCH_SIZE) {
+      client.release();
+      return NextResponse.json(
+        { error: `Maksimalan broj certifikata po jednom batch-u je ${MAX_BATCH_SIZE}.` },
+        { status: 400 }
+      );
+    }
+
     const finalCertType = certificateType || 'Diploma o završenom studiju';
     const validMetadata = metadata && typeof metadata === 'object' ? metadata : {};
     const metadataString = JSON.stringify(validMetadata);
@@ -85,6 +95,22 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Nema validnih primatelja sa imenom i emailom.' }, { status: 400 });
     }
 
+    // 1. PROVJERA DUPLIKATA U BAZI (Prije upisa na blockchain)
+    const hashesToCheck = processedRecipients.map(r => r.certificateHash);
+    const existingCheck = await client.query(
+      'SELECT certificate_hash FROM certificates WHERE certificate_hash = ANY($1)',
+      [hashesToCheck]
+    );
+
+    if (existingCheck.rows.length > 0) {
+      client.release();
+      return NextResponse.json(
+        { error: `Greška: Jedan ili više certifikata iz ove liste već postoji u bazi podataka.` },
+        { status: 409 }
+      );
+    }
+
+    // 2. PROVERA BLOKČEJN VARIJABLI
     const rpcUrl = process.env.SEPOLIA_RPC_URL || process.env.BLOCKCHAIN_RPC_URL;
     const contractAddress = process.env.CONTRACT_ADDRESS;
     const adminPrivateKey = process.env.ADMIN_PRIVATE_KEY;
@@ -113,7 +139,7 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Blockchain greška pri izdavanju.' }, { status: 500 });
     }
 
-    // Upis u bazu unutar transakcije (sa jednim oslobađanjem klijenta na kraju)
+    // 3. UPIS U BAZU (Ispravljen catch - nema duplog release()!)
     try {
       await client.query('BEGIN');
       const insertedCertificates = [];
@@ -161,7 +187,7 @@ export async function POST(request: Request) {
 
     } catch (dbError) {
       await client.query('ROLLBACK');
-      client.release();
+      // UKLONJEN client.release() OVDJE — vanjski catch će odraditi release jednom!
       throw dbError;
     }
 

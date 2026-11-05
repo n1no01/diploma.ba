@@ -1,12 +1,18 @@
 import { NextResponse } from 'next/server';
 import { Pool } from 'pg';
+import { ethers } from 'ethers';
 import { getServerSession } from 'next-auth';
 
 const pool = new Pool({
   connectionString: process.env.DATABASE_URL,
 });
 
+const CONTRACT_ABI = [
+  "function revokeCertificate(string memory certHash) public"
+];
+
 export async function POST(request: Request) {
+  let client;
   try {
     const session = await getServerSession();
     if (!session || !session.user?.email) {
@@ -14,67 +20,93 @@ export async function POST(request: Request) {
     }
 
     const institutionEmail = session.user.email;
-    const body = await request.json();
-    const { certificateId } = body;
+    client = await pool.connect();
 
-    if (!certificateId) {
-      return NextResponse.json({ error: 'ID certifikata je obavezan.' }, { status: 400 });
-    }
-
-    const client = await pool.connect();
-
-    // 1. Provjeravamo naziv ulogovane institucije
     const instCheck = await client.query(
-      'SELECT name FROM institutions WHERE email = $1 AND is_approved = true',
+      'SELECT id, is_approved FROM institutions WHERE email = $1',
       [institutionEmail]
     );
 
-    if (instCheck.rows.length === 0) {
+    if (instCheck.rows.length === 0 || !instCheck.rows[0].is_approved) {
       client.release();
-      return NextResponse.json({ error: 'Institucija nije pronađena ili nije odobrena.' }, { status: 403 });
+      return NextResponse.json(
+        { error: 'Vaš nalog nije odobren.' },
+        { status: 403 }
+      );
     }
 
-    const institutionName = instCheck.rows[0].name;
+    const institutionId = instCheck.rows[0].id;
+    const body = await request.json();
+    const { certificateHash } = body;
 
-    // 2. Provjeravamo da li certifikat pripada ovoj instituciji
+    if (!certificateHash) {
+      client.release();
+      return NextResponse.json({ error: 'Nedostaje hash certifikata.' }, { status: 400 });
+    }
+
+    // Provjeravamo da li certifikat pripada ovoj instituciji
     const certCheck = await client.query(
-      'SELECT id, institution_name, status FROM certificates WHERE id = $1',
-      [certificateId]
+      'SELECT id, status FROM certificates WHERE certificate_hash = $1 AND institution_id = $2',
+      [certificateHash.trim().toLowerCase(), institutionId]
     );
 
     if (certCheck.rows.length === 0) {
       client.release();
-      return NextResponse.json({ error: 'Certifikat nije pronađen.' }, { status: 404 });
+      return NextResponse.json(
+        { error: 'Certifikat nije pronađen ili nemate dozvolu za njegov opoziv.' },
+        { status: 404 }
+      );
     }
 
-    const cert = certCheck.rows[0];
-
-    // Sigurnosna provjera: samo institucija koja je izdala certifikat može ga poništiti
-    if (cert.institution_name !== institutionName) {
+    if (certCheck.rows[0].status === 'revoked') {
       client.release();
-      return NextResponse.json({ error: 'Nemate dozvolu da poništite tuđi certifikat.' }, { status: 403 });
+      return NextResponse.json(
+        { error: 'Certifikat je već opozvan.' },
+        { status: 400 }
+      );
     }
 
-    if (cert.status === 'revoked') {
+    // 1. OPOZIV NA BLOCKCHAINU
+    const rpcUrl = process.env.SEPOLIA_RPC_URL || process.env.BLOCKCHAIN_RPC_URL;
+    const contractAddress = process.env.CONTRACT_ADDRESS;
+    const adminPrivateKey = process.env.ADMIN_PRIVATE_KEY;
+
+    if (!rpcUrl || !contractAddress || !adminPrivateKey) {
       client.release();
-      return NextResponse.json({ error: 'Ovaj certifikat je već ranije poništen.' }, { status: 400 });
+      return NextResponse.json(
+        { error: 'Sistemska greška: Nedostaju blockchain parametri.' },
+        { status: 500 }
+      );
     }
 
-    // 3. Ažuriramo status na 'revoked'
+    try {
+      const provider = new ethers.JsonRpcProvider(rpcUrl);
+      const wallet = new ethers.Wallet(adminPrivateKey, provider);
+      const contract = new ethers.Contract(contractAddress, CONTRACT_ABI, wallet);
+
+      const tx = await contract.revokeCertificate(certificateHash.trim().toLowerCase());
+      await tx.wait();
+    } catch (bcErr: any) {
+      client.release();
+      console.error('Blockchain greška pri opozivu:', bcErr);
+      return NextResponse.json({ error: 'Greška pri opozivu na blockchain mreži.' }, { status: 500 });
+    }
+
+    // 2. OPOZIV U BAZI
     await client.query(
-      'UPDATE certificates SET status = $1 WHERE id = $2',
-      ['revoked', certificateId]
+      "UPDATE certificates SET status = 'revoked' WHERE certificate_hash = $1",
+      [certificateHash.trim().toLowerCase()]
     );
-
     client.release();
 
     return NextResponse.json({
       success: true,
-      message: 'Certifikat je uspješno poništen (opozvan).',
+      message: 'Certifikat je uspješno opozvan i na blockchain mreži i u bazi podataka.',
     });
 
   } catch (error: any) {
-    console.error('Greška pri opozivu certifikata:', error);
-    return NextResponse.json({ error: 'Greška na serveru pri opozivu certifikata.' }, { status: 500 });
+    if (client) client.release();
+    console.error('Greška pri opozivu:', error);
+    return NextResponse.json({ error: 'Interna greška na serveru.' }, { status: 500 });
   }
 }
