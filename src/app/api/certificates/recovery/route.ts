@@ -47,7 +47,7 @@ export async function POST(req: Request) {
         <div style="background-color: #1e293b; padding: 15px; border-radius: 8px; margin-bottom: 12px; border: 1px solid #334155;">
           <strong style="color: #ffffff; font-size: 16px; display: block; margin-bottom: 4px;">${cert.certificate_type}</strong>
           <span style="color: #94a3b8; font-size: 13px; display: block; margin-bottom: 8px;">Izdavalac: ${cert.institution_name}</span>
-          <a href="${process.env.NEXT_PUBLIC_APP_URL}/verifikuj?hash=${cert.certificate_hash}" 
+          <a href="${process.env.APP_URL}/verifikuj?hash=${cert.certificate_hash}" 
              style="color: #38bdf8; display: inline-block; font-weight: bold; text-decoration: none; font-size: 13px;">
              Otvori Verifikacijski Link &rarr;
           </a>
