@@ -9,7 +9,7 @@ export default function Footer() {
           <Link href="/verifikuj" className="hover:text-slate-900 transition">
             Javni registar
           </Link>
-          <Link href="/privacy" className="hover:text-slate-900 transition">
+          <Link href="/politika-privatnosti" className="hover:text-slate-900 transition">
             Politika privatnosti
           </Link>
         </div>

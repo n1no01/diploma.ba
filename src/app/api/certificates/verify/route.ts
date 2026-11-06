@@ -35,7 +35,7 @@ export async function GET(request: Request) {
 
     // 1. Provera na blockchainu
     try {
-      const rpcUrl = process.env.SEPOLIA_RPC_URL || process.env.BLOCKCHAIN_RPC_URL;
+      const rpcUrl = process.env.BLOCKCHAIN_RPC_URL;
       const contractAddress = process.env.CONTRACT_ADDRESS;
 
       if (!rpcUrl || !contractAddress) {

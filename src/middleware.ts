@@ -1,24 +1,36 @@
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
+import { getToken } from "next-auth/jwt";
 
-export function middleware(request: NextRequest) {
-  // Provjeravamo postojanje NextAuth kolačića sesije
-  const sessionCookie = 
-    request.cookies.get("authjs.session-token") ||
-    request.cookies.get("__Secure-authjs.session-token") ||
-    request.cookies.get("next-auth.session-token") ||
-    request.cookies.get("__Secure-next-auth.session-token");
-
+export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
-  // Ako pokušava pristupiti portalu ili izradi, a nema sesije -> preusmjeri na /login
-  if ((pathname.startsWith("/portal") || pathname.startsWith("/izdavanje")) && !sessionCookie) {
+  // 1. Pročitamo puni token iz kolačića (automatski prepoznaje HTTPS i HTTP kolačiće)
+  const token = await getToken({ 
+    req: request, 
+    secret: process.env.NEXTAUTH_SECRET 
+  });
+
+  // 2. Zaštita za /portal i /izdavanje (bilo koji ulogovani korisnik)
+  if ((pathname.startsWith("/portal") || pathname.startsWith("/izdavanje")) && !token) {
     return NextResponse.redirect(new URL("/login", request.url));
+  }
+
+  // 3. Zaštita za /admin (SAMO korisnici sa ulogom ADMIN)
+  if (pathname.startsWith("/admin")) {
+    if (!token) {
+      return NextResponse.redirect(new URL("/login", request.url));
+    }
+    
+    // Ako nije admin, šaljemo ga na počeotak ili na portal
+    if (token.role !== "ADMIN") {
+      return NextResponse.redirect(new URL("/portal", request.url));
+    }
   }
 
   return NextResponse.next();
 }
 
 export const config = {
-  matcher: ["/portal/:path*", "/izdavanje/:path*"],
+  matcher: ["/portal/:path*", "/izdavanje/:path*", "/admin/:path*"],
 };

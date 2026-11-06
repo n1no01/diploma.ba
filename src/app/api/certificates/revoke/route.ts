@@ -67,7 +67,7 @@ export async function POST(request: Request) {
     }
 
     // 1. OPOZIV NA BLOCKCHAINU
-    const rpcUrl = process.env.SEPOLIA_RPC_URL || process.env.BLOCKCHAIN_RPC_URL;
+    const rpcUrl = process.env.BLOCKCHAIN_RPC_URL;
     const contractAddress = process.env.CONTRACT_ADDRESS;
     const adminPrivateKey = process.env.ADMIN_PRIVATE_KEY;
 

@@ -285,8 +285,8 @@ export default function DashboardPage() {
                     </td>
                     <td className="px-6 py-4 font-mono text-xs">
                       {cert.tx_hash ? (
-                        <a
-                          href={`https://sepolia.etherscan.io/tx/${cert.tx_hash}`}
+                       <a
+                          href={`https://basescan.org/tx/${cert.tx_hash}`}
                           target="_blank"
                           rel="noopener noreferrer"
                           className="text-blue-600 hover:underline font-semibold inline-flex items-center gap-1"

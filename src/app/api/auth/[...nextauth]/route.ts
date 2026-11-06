@@ -4,6 +4,30 @@ import GoogleProvider from "next-auth/providers/google";
 import { Pool } from "pg";
 import bcrypt from "bcryptjs";
 
+// Proširenje NextAuth tipova da TypeScript prepoznaje role i isApproved
+declare module "next-auth" {
+  interface User {
+    role?: string;
+    isApproved?: boolean;
+  }
+  interface Session {
+    user: {
+      name?: string | null;
+      email?: string | null;
+      image?: string | null;
+      role?: string;
+      isApproved?: boolean;
+    };
+  }
+}
+
+declare module "next-auth/jwt" {
+  interface JWT {
+    role?: string;
+    isApproved?: boolean;
+  }
+}
+
 const pool = new Pool({
   connectionString: process.env.DATABASE_URL,
 });
@@ -45,6 +69,8 @@ export const authOptions: NextAuthOptions = {
             id: institution.id.toString(),
             name: institution.name,
             email: institution.email,
+            role: institution.role || 'USER',
+            isApproved: institution.is_approved ?? false,
           };
         } catch (error) {
           console.error("Greška pri autentifikaciji:", error);
@@ -65,13 +91,11 @@ export const authOptions: NextAuthOptions = {
           );
 
           if (existing.rows.length === 0) {
-            // Nova institucija se registruje preko Google-a, ali je AUTOMATSKI NEOUTORIZOVANA (is_approved = false)
+            // Nova institucija – automatski role='USER' i is_approved=FALSE
             await client.query(
-              'INSERT INTO institutions (name, email, password_hash, is_approved, created_at) VALUES ($1, $2, $3, FALSE, NOW())',
-              [user.name || user.email, user.email, 'GOOGLE_OAUTH_ACCOUNT']
+              'INSERT INTO institutions (name, email, password_hash, is_approved, role, created_at) VALUES ($1, $2, $3, FALSE, $4, NOW())',
+              [user.name || user.email, user.email, 'GOOGLE_OAUTH_ACCOUNT', 'USER']
             );
-          } else {
-            // Opciono: Možeš provjeriti da li je odobren, mada rute za izdavanje već provjeravaju is_approved
           }
           
           client.release();
@@ -83,22 +107,35 @@ export const authOptions: NextAuthOptions = {
       }
       return true;
     },
-    async session({ session }) {
-      if (session.user?.email) {
+
+    async jwt({ token, user, trigger }) {
+      // Pri prvoj prijavi (Credentials ili Google) povlačimo sve svezje podatke iz baze
+      if (user || trigger === "update") {
         try {
           const client = await pool.connect();
           const result = await client.query(
-            'SELECT id, name FROM institutions WHERE email = $1',
-            [session.user.email]
+            'SELECT role, is_approved, name FROM institutions WHERE email = $1',
+            [token.email]
           );
           client.release();
 
           if (result.rows.length > 0) {
-            session.user.name = result.rows[0].name;
+            token.role = result.rows[0].role || 'USER';
+            token.isApproved = result.rows[0].is_approved ?? false;
+            token.name = result.rows[0].name;
           }
         } catch (err) {
-          console.error("Greška pri dohvaćanju naziva institucije za sesiju:", err);
+          console.error("Greška pri osvežavanju JWT-a:", err);
         }
+      }
+      return token;
+    },
+
+    async session({ session, token }) {
+      if (session.user) {
+        session.user.name = token.name;
+        session.user.role = token.role as string;
+        session.user.isApproved = token.isApproved as boolean;
       }
       return session;
     }

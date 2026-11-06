@@ -8,9 +8,13 @@ const pool = new Pool({
 export async function GET() {
   try {
     const client = await pool.connect();
-    // Vraćamo samo naziv i datum registracije/odobrenja za javni registar
+    
+    // Vraćamo odobrene institucije, ali isključujemo naloge sa ulogom 'ADMIN'
     const result = await client.query(
-      'SELECT name, website, created_at FROM institutions WHERE is_approved = true ORDER BY name ASC'
+      `SELECT name, website, created_at 
+       FROM institutions 
+       WHERE is_approved = true AND role != 'ADMIN' 
+       ORDER BY name ASC`
     );
     client.release();
 

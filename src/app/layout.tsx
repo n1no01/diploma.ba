@@ -5,7 +5,7 @@ import SessionWrapper from './components/SessionWrapper';
 import Footer from './components/Footer';
 
 export const metadata: Metadata = {
-  title: 'diploma.ba - Web3 Provjera Dokumenata',
+  title: 'diploma.ba - Provjera i izdavanje digitalnih certifikata”',
   description: 'Sigurna platforma za izdavanje i provjeru certifikata na Ethereum blockchainu.',
 };
 

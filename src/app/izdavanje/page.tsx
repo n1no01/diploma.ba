@@ -13,7 +13,10 @@ export default function IssueCertificatePage() {
   
   const [certTypes, setCertTypes] = useState<string[]>([
     'Diploma o završenom studiju',
+    'Certifikat o završenoj obuci / kursu',
     'Certifikat o stručnom usavršavanju',
+    'Potvrda o učešću',
+    'Certifikat o završenoj praksi',
   ]);
 
   const [certificateType, setCertificateType] = useState('Diploma o završenom studiju');
@@ -43,7 +46,13 @@ export default function IssueCertificatePage() {
     if (savedCustomTypes) {
       try {
         const parsed = JSON.parse(savedCustomTypes);
-        setCertTypes(prev => [...prev, ...parsed]);
+        setCertTypes(prev => {
+          const combined = [...prev];
+          parsed.forEach((t: string) => {
+            if (!combined.includes(t)) combined.push(t);
+          });
+          return combined;
+        });
       } catch (e) {
         console.error('Greška pri učitavanju custom tipova');
       }
@@ -79,9 +88,14 @@ export default function IssueCertificatePage() {
         const updatedTypes = [...certTypes.filter(t => t !== 'Ostalo'), finalCertType, 'Ostalo'];
         setCertTypes(updatedTypes);
         
-        const customOnly = updatedTypes.filter(t => 
-          !['Diploma o završenom studiju', 'Certifikat o stručnom usavršavanju', 'Ostalo'].includes(t)
-        );
+        const defaultTypes = [
+          'Diploma o završenom studiju',
+          'Certifikat o završenoj obuci / kursu',
+          'Certifikat o stručnom usavršavanju',
+          'Potvrda o učešću',
+          'Certifikat o završenoj praksi'
+        ];
+        const customOnly = updatedTypes.filter(t => !defaultTypes.includes(t) && t !== 'Ostalo');
         localStorage.setItem('diploma.ba_custom_types', JSON.stringify(customOnly));
       }
     }

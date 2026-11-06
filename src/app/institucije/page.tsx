@@ -33,7 +33,7 @@ export default function PublicInstitutionsPage() {
           Registar Verifikovanih Institucija
         </h1>
         <p className="text-slate-600 text-sm">
-          Pregled svih zvaničnih obrazovnih ustanova, fakulteta i organizacija koje izdaju sigurne, blockchain-verifikovane dokumente putem <span className="font-semibold text-slate-900">diploma.ba</span>.
+          Pregled svih zvaničnih ustanova i organizacija koje izdaju sigurne, verifikovane dokumente putem <span className="font-semibold text-slate-900">diploma.ba</span>.
         </p>
       </div>
 
