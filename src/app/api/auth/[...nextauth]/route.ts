@@ -86,11 +86,17 @@ export const authOptions: NextAuthOptions = {
       }
     })
   ],
-  callbacks: {
+callbacks: {
     async signIn({ user, account }) {
       if (account?.provider === 'google') {
+        if (!user.email) {
+          console.error("Google login greška: Korisnik nema email adresu.");
+          return false;
+        }
+
+        let client;
         try {
-          const client = await pool.connect();
+          client = await pool.connect();
           
           const existing = await client.query(
             'SELECT * FROM institutions WHERE email = $1',
@@ -98,31 +104,34 @@ export const authOptions: NextAuthOptions = {
           );
 
           if (existing.rows.length === 0) {
-            // Nova institucija preko Google-a – automatski role='USER' i is_approved=FALSE
+            // Kreiramo novu ustanovu preko Google-a
             await client.query(
               'INSERT INTO institutions (name, email, password_hash, is_approved, role, created_at) VALUES ($1, $2, $3, FALSE, $4, NOW())',
               [user.name || user.email, user.email, 'GOOGLE_OAUTH_ACCOUNT', 'USER']
             );
+            console.log(`Uspješno kreirana nova ustanova za email: ${user.email}`);
           }
           
           client.release();
           return true;
-        } catch (dbError) {
-          console.error("Greška pri registraciji Google naloga u bazu:", dbError);
-          return false;
+        } catch (dbError: any) {
+          if (client) client.release();
+          console.error("KRITIČNA DB GREŠKA pri Google registraciji:", dbError.message, dbError.detail);
+          return false; // OVO JE TAČKA GDJE SE VRAĆA AccessDenied AKO BAZA PUKNE!
         }
       }
       return true;
     },
 
-   async jwt({ token, user, trigger }) {
+    async jwt({ token, user, trigger }) {
       if (user?.email) {
         token.email = user.email;
       }
 
       if (token.email || trigger === "update") {
+        let client;
         try {
-          const client = await pool.connect();
+          client = await pool.connect();
           const result = await client.query(
             'SELECT role, is_approved, name FROM institutions WHERE email = $1',
             [token.email]
@@ -135,7 +144,8 @@ export const authOptions: NextAuthOptions = {
             token.name = result.rows[0].name;
           }
         } catch (err) {
-          console.error("Greška pri osvežavanju JWT-a:", err);
+          if (client) client.release();
+          console.error("Greška pri osvežavanju JWT-a iz baze:", err);
         }
       }
       return token;
