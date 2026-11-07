@@ -115,9 +115,12 @@ export const authOptions: NextAuthOptions = {
       return true;
     },
 
-    async jwt({ token, user, trigger }) {
-      // Kada se korisnik prijavi (bilo preko credentials ili google) ili osvježi sesiju
-      if (user || trigger === "update" || token.email) {
+   async jwt({ token, user, trigger }) {
+      if (user?.email) {
+        token.email = user.email;
+      }
+
+      if (token.email || trigger === "update") {
         try {
           const client = await pool.connect();
           const result = await client.query(
