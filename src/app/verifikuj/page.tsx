@@ -237,6 +237,20 @@ function VerifyContent() {
               <span>Status: <strong className={isRevoked ? 'text-rose-600' : 'text-emerald-600'}>{isRevoked ? 'Poništen / Opozvan' : 'Aktivan'}</strong></span>
               <span>Izdato: {certData.created_at ? new Date(certData.created_at).toLocaleDateString('bs-BA') : 'N/A'}</span>
             </div>
+            {/* NOVO: Dugme za preuzimanje PDF certifikata ako je dokument validan */}
+            {!isRevoked && (
+              <div className="pt-4 border-t border-slate-100 flex justify-end">
+                <a
+                  href={`/api/certificates/${certData.certificate_hash}/pdf`}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="bg-emerald-600 hover:bg-emerald-700 text-white font-semibold px-5 py-2.5 rounded-xl transition shadow-sm flex items-center gap-2 text-xs cursor-pointer"
+                >
+                  <span>Preuzmi PDF Certifikat</span>
+                  <span>↓</span>
+                </a>
+              </div>
+            )}
           </div>
         </div>
       )}
@@ -245,7 +259,7 @@ function VerifyContent() {
       <div className="bg-slate-900 text-slate-100 rounded-2xl p-6 sm:p-8 border border-slate-800 shadow-lg mt-12">
         <div className="max-w-lg">
           <span className="text-xs font-semibold uppercase tracking-wider text-cyan-400 bg-cyan-950 px-3 py-1 rounded-full border border-cyan-800 inline-block mb-3">
-            Izgubili ste link? ✉️
+            Izgubili ste link?
           </span>
           <h3 className="text-xl font-bold mb-2">Zatražite oporavak svojih certifikata</h3>
           <p className="text-slate-400 text-sm mb-6">

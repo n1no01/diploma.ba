@@ -24,17 +24,26 @@ export default function DashboardPage() {
   // Stanje za odobrenje od strane admina
   const [isApproved, setIsApproved] = useState<boolean | null>(null);
 
+  // Stanja za logo institucije
+  const [logoUrl, setLogoUrl] = useState('');
+  const [uploadingLogo, setUploadingLogo] = useState(false);
+  const [logoMessage, setLogoMessage] = useState('');
+  const [showLogoSettings, setShowLogoSettings] = useState(false);
+
   // Stanja za filtere
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedType, setSelectedType] = useState('ALL');
 
   async function fetchData() {
     try {
-      // 1. Provjera statusa odobrenja ustanove
+      // 1. Provjera statusa odobrenja i podataka ustanove (uključujući logo)
       const statusRes = await fetch('/api/institution/status');
       if (statusRes.ok) {
         const statusData = await statusRes.json();
         setIsApproved(statusData.is_approved);
+        if (statusData.logo_url) {
+          setLogoUrl(statusData.logo_url);
+        }
       }
 
       // 2. Učitavanje certifikata
@@ -59,7 +68,67 @@ export default function DashboardPage() {
     }
   }, [session]);
 
-  // Funkcija za opoziv (poništenje) certifikata - sada prima certificateHash
+  // Funkcija za upload fajla logotipa sa računara
+  async function handleLogoUpload(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    setUploadingLogo(true);
+    setLogoMessage('');
+
+    const formData = new FormData();
+    formData.append('file', file);
+
+    try {
+      const res = await fetch('/api/institution/upload-logo', {
+        method: 'POST',
+        body: formData,
+      });
+
+      const data = await res.json();
+
+      if (res.ok && data.success) {
+        setLogoUrl(data.institution.logo_url);
+        setLogoMessage('Logo je uspješno uploadovan i sačuvan!');
+      } else {
+        setLogoMessage(data.error || 'Došlo je do greške pri uploadu.');
+      }
+    } catch (err) {
+      console.error('Greška:', err);
+      setLogoMessage('Mrežna greška prilikom uploada.');
+    } finally {
+      setUploadingLogo(false);
+    }
+  }
+
+  // Funkcija za uklanjanje logotipa
+  async function handleRemoveLogo() {
+    if (!confirm('Da li ste sigurni da želite ukloniti logo institucije?')) return;
+
+    setUploadingLogo(true);
+    setLogoMessage('');
+
+    try {
+      const res = await fetch('/api/institution/upload-logo', {
+        method: 'DELETE',
+      });
+
+      const data = await res.json();
+
+      if (res.ok && data.success) {
+        setLogoUrl('');
+        setLogoMessage('Logotip je uspješno uklonjen.');
+      } else {
+        setLogoMessage(data.error || 'Došlo je do greške.');
+      }
+    } catch (err) {
+      setLogoMessage('Mrežna greška prilikom brisanja.');
+    } finally {
+      setUploadingLogo(false);
+    }
+  }
+
+  // Funkcija za opoziv certifikata
   async function handleRevoke(certificateHash: string) {
     if (!confirm('Da li ste sigurni da želite trajno poništiti ovaj certifikat? Ova akcija se ne može poništiti.')) {
       return;
@@ -69,14 +138,14 @@ export default function DashboardPage() {
       const res = await fetch('/api/certificates/revoke', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ certificateHash }), // Šaljemo hash u skladu sa backend rutom
+        body: JSON.stringify({ certificateHash }),
       });
 
       const data = await res.json();
 
       if (res.ok && data.success) {
         alert('Certifikat je uspješno poništen na blockchain mreži i u bazi.');
-        fetchData(); // Ponovo učitaj podatke da se osvježi status
+        fetchData();
       } else {
         alert(data.error || 'Došlo je do greške.');
       }
@@ -86,13 +155,11 @@ export default function DashboardPage() {
     }
   }
 
-  // Ekstrakcija svih unikatnih tipova certifikata za dropdown filter
   const certificateTypes = useMemo(() => {
     const types = new Set(certificates.map((c) => c.certificate_type).filter(Boolean));
     return Array.from(types);
   }, [certificates]);
 
-  // Filtriranje liste na osnovu unosa i izabranog tipa
   const filteredCertificates = useMemo(() => {
     return certificates.filter((cert) => {
       const query = searchQuery.toLowerCase().trim();
@@ -139,24 +206,80 @@ export default function DashboardPage() {
           </p>
         </div>
 
-        {/* Dugme za izdavanje (Onemogućeno ako nalog nije odobren) */}
-        {isApproved === false ? (
+        {/* Akcijski dugmići */}
+        <div className="flex items-center gap-3">
           <button
-            disabled
-            className="px-5 py-3 rounded-xl font-semibold bg-slate-200 text-slate-400 text-sm cursor-not-allowed text-center"
-            title="Nalog čeka odobrenje administratora"
+            onClick={() => setShowLogoSettings(!showLogoSettings)}
+            className="px-4 py-3 rounded-xl font-semibold bg-slate-100 hover:bg-slate-200 text-slate-700 text-sm transition border border-slate-300 cursor-pointer flex items-center gap-2"
           >
-            + Izdaj novi certifikat (Na čekanju)
+            <span>{logoUrl ? 'Uredi Logo' : 'Dodaj Logo'}</span>
           </button>
-        ) : (
-          <Link
-            href="/izdavanje"
-            className="px-5 py-3 rounded-xl font-semibold bg-blue-600 hover:bg-blue-700 text-white text-sm transition shadow-md shadow-blue-600/20 text-center"
-          >
-            + Izdaj novi certifikat
-          </Link>
-        )}
+
+          {isApproved === false ? (
+            <button
+              disabled
+              className="px-5 py-3 rounded-xl font-semibold bg-slate-200 text-slate-400 text-sm cursor-not-allowed text-center"
+              title="Nalog čeka odobrenje administratora"
+            >
+              + Izdaj novi certifikat (Na čekanju)
+            </button>
+          ) : (
+            <Link
+              href="/izdavanje"
+              className="px-5 py-3 rounded-xl font-semibold bg-blue-600 hover:bg-blue-700 text-white text-sm transition shadow-md shadow-blue-600/20 text-center"
+            >
+              + Izdaj novi certifikat
+            </Link>
+          )}
+        </div>
       </div>
+
+      {/* Kolapsibilna sekcija za upload / uklanjanje logotipa */}
+      {showLogoSettings && (
+        <div className="mb-8 p-6 bg-white border border-slate-200 rounded-2xl shadow-sm transition-all">
+          <h3 className="text-base font-bold text-slate-900 mb-2">Vizuelni identitet (Logo institucije)</h3>
+          <p className="text-xs text-slate-500 mb-4">
+            Izaberite zvanični logo sa vašeg računara (PNG, JPG ili SVG). Logo će se automatski prikazivati na vrhu svih PDF certifikata koje izdate.
+          </p>
+
+          <div className="flex flex-col sm:flex-row gap-4 items-center">
+            <input
+              type="file"
+              accept="image/png, image/jpeg, image/svg+xml"
+              onChange={handleLogoUpload}
+              disabled={uploadingLogo}
+              className="w-full text-sm text-slate-500 file:mr-4 file:py-2.5 file:px-4 file:rounded-xl file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100 cursor-pointer"
+            />
+          </div>
+
+          {uploadingLogo && (
+            <p className="text-xs text-blue-600 mt-3 font-medium">Obrada u toku...</p>
+          )}
+
+          {logoUrl && !uploadingLogo && (
+            <div className="mt-4 flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <span className="text-xs font-medium text-slate-500">Trenutni logo:</span>
+                <div className="w-12 h-12 bg-slate-50 border border-slate-200 rounded-lg flex items-center justify-center overflow-hidden p-1">
+                  <img src={logoUrl} alt="Logo preview" className="max-h-full max-w-full object-contain" />
+                </div>
+              </div>
+              <button
+                onClick={handleRemoveLogo}
+                className="px-3 py-1.5 rounded-xl text-xs font-semibold bg-rose-50 text-rose-600 hover:bg-rose-600 hover:text-white transition border border-rose-200 cursor-pointer"
+              >
+                Ukloni logo
+              </button>
+            </div>
+          )}
+
+          {logoMessage && (
+            <p className={`text-xs mt-3 font-semibold ${logoMessage.includes('uspješno') ? 'text-emerald-600' : 'text-rose-600'}`}>
+              {logoMessage}
+            </p>
+          )}
+        </div>
+      )}
 
       {/* Statistika / Kartice */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-6 mb-8">
@@ -192,14 +315,12 @@ export default function DashboardPage() {
 
       {/* Lista certifikata i filteri */}
       <div className="bg-white border border-slate-200 rounded-3xl overflow-hidden shadow-xl">
-        {/* Traka sa filterima */}
         <div className="p-6 border-b border-slate-200 bg-slate-50/50 flex flex-col md:flex-row gap-4 items-center justify-between">
           <h2 className="text-lg font-bold text-slate-900 whitespace-nowrap">
             Evidencija certifikata
           </h2>
 
           <div className="flex flex-col sm:flex-row gap-3 w-full md:w-auto">
-            {/* Pretraga po tekstu (Ime, Email, Hash) */}
             <input
               type="text"
               placeholder="Pretraži po imenu, emailu ili hash-u..."
@@ -208,7 +329,6 @@ export default function DashboardPage() {
               className="px-4 py-2 bg-white border border-slate-300 rounded-xl text-sm text-slate-900 placeholder:text-slate-400 focus:outline-none focus:border-blue-600 shadow-2xs w-full sm:w-64"
             />
 
-            {/* Filter po tipu certifikata */}
             <select
               value={selectedType}
               onChange={(e) => setSelectedType(e.target.value)}

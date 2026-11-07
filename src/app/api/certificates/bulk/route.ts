@@ -169,6 +169,7 @@ export async function POST(request: Request) {
             institutionName: verifiedInstitutionName,
             certificateTitle: finalCertType,
             verifyToken: recipient.certificateHash,
+            certificateId: res.rows[0].id,
           });
         } catch (mailErr) {
           console.error(`Greška pri slanju maila za ${recipient.email}:`, mailErr);

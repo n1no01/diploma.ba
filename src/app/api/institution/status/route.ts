@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { Pool } from 'pg';
 import { getServerSession } from 'next-auth';
+import { authOptions } from '@/app/api/auth/[...nextauth]/route'; // Provjeri putanju do authOptions ako je koristiš i drugdje
 
 const pool = new Pool({
   connectionString: process.env.DATABASE_URL,
@@ -8,7 +9,7 @@ const pool = new Pool({
 
 export async function GET() {
   try {
-    const session = await getServerSession();
+    const session = await getServerSession(authOptions);
     if (!session || !session.user?.email) {
       return NextResponse.json(
         { error: 'Neautorizovan pristup.' },
@@ -19,8 +20,9 @@ export async function GET() {
     const email = session.user.email;
     const client = await pool.connect();
 
+    // Dodali smo logo_url u SELECT upit
     const result = await client.query(
-      'SELECT is_approved FROM institutions WHERE email = $1',
+      'SELECT is_approved, logo_url FROM institutions WHERE LOWER(email) = LOWER($1)',
       [email]
     );
 
@@ -36,6 +38,7 @@ export async function GET() {
     return NextResponse.json({
       success: true,
       is_approved: result.rows[0].is_approved ?? false,
+      logo_url: result.rows[0].logo_url || null, // Vraćamo logo_url (ili null ako ga nema)
     });
 
   } catch (error: any) {

@@ -37,6 +37,13 @@ export const authOptions: NextAuthOptions = {
     GoogleProvider({
       clientId: process.env.GOOGLE_CLIENT_ID || '',
       clientSecret: process.env.GOOGLE_CLIENT_SECRET || '',
+      authorization: {
+        params: {
+          prompt: "select_account", // Uvijek prikazuje prozor za izbor Gmail naloga
+          access_type: "offline",
+          response_type: "code"
+        }
+      }
     }),
     CredentialsProvider({
       name: "Admin Prijava",
@@ -91,7 +98,7 @@ export const authOptions: NextAuthOptions = {
           );
 
           if (existing.rows.length === 0) {
-            // Nova institucija – automatski role='USER' i is_approved=FALSE
+            // Nova institucija preko Google-a – automatski role='USER' i is_approved=FALSE
             await client.query(
               'INSERT INTO institutions (name, email, password_hash, is_approved, role, created_at) VALUES ($1, $2, $3, FALSE, $4, NOW())',
               [user.name || user.email, user.email, 'GOOGLE_OAUTH_ACCOUNT', 'USER']
@@ -109,8 +116,8 @@ export const authOptions: NextAuthOptions = {
     },
 
     async jwt({ token, user, trigger }) {
-      // Pri prvoj prijavi (Credentials ili Google) povlačimo sve svezje podatke iz baze
-      if (user || trigger === "update") {
+      // Kada se korisnik prijavi (bilo preko credentials ili google) ili osvježi sesiju
+      if (user || trigger === "update" || token.email) {
         try {
           const client = await pool.connect();
           const result = await client.query(
