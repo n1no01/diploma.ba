@@ -126,6 +126,7 @@ export async function POST(req: Request) {
         institutionName,
         certificateTitle: finalCertType,
         verifyToken: certificateHash,
+        certificateId: result.rows[0].id,
       });
     } catch (emailErr) {
       console.error('Greška pri slanju emaila:', emailErr);
