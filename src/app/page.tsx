@@ -208,6 +208,7 @@ export default function Home() {
           <span className="text-xs text-slate-400 font-medium mb-1">
             Mreža: <strong className="text-emerald-400">Base Mainnet</strong> (Samo <span className="text-white">ETH</span>)
           </span>
+
           <div className="flex items-center gap-2 bg-slate-900 border border-slate-700 p-2.5 rounded-xl w-full">
             <code className="text-xs font-mono text-blue-300 truncate w-full">
               {DONATION_ADDRESS}
@@ -262,6 +263,25 @@ export default function Home() {
           })}
         </div>
       </div>
+
+      {/* JSON-LD Schema.org FAQPage za AEO/SEO */}
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{
+          __html: JSON.stringify({
+            '@context': 'https://schema.org',
+            '@type': 'FAQPage',
+            'mainEntity': faqData.map((faq) => ({
+              '@type': 'Question',
+              'name': faq.question,
+              'acceptedAnswer': {
+                '@type': 'Answer',
+                'text': faq.answer,
+              },
+            })),
+          }),
+        }}
+      />
 
     </main>
   );
