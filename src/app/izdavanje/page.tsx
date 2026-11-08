@@ -12,6 +12,7 @@ interface Recipient {
   name: string;
   email: string;
   identifier: string;
+  expiresAt?: string;
 }
 
 export default function IssueCertificatePage() {
@@ -35,6 +36,7 @@ export default function IssueCertificatePage() {
   const [studentName, setStudentName] = useState('');
   const [studentEmail, setStudentEmail] = useState('');
   const [identifier, setIdentifier] = useState('');
+  const [expiresAt, setExpiresAt] = useState(''); // NOVO: Rok trajanja za pojedinačni unos
   
   // Dinamička dodatna polja
   const [customFields, setCustomFields] = useState<CustomField[]>([]);
@@ -43,6 +45,7 @@ export default function IssueCertificatePage() {
   const [bulkData, setBulkData] = useState('');
   const [parsedRecipients, setParsedRecipients] = useState<Recipient[]>([]);
   const [fileName, setFileName] = useState('');
+  const [globalExpiresAt, setGlobalExpiresAt] = useState(''); // NOVO: Opcioni zajednički rok za masovni unos
   
   const [loading, setLoading] = useState(false);
   const [successMsg, setSuccessMsg] = useState('');
@@ -68,8 +71,8 @@ export default function IssueCertificatePage() {
     }
   }, []);
 
-  // Funkcija za parsiranje CSV fajla sa računara (sa podrškom za UTF-8 dijakritičke znakove č, ć, š, ž, đ)
- const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+  // Funkcija za parsiranje CSV fajla (Podržava: Ime, Email, Identifikator, DatumIsteka)
+  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
 
@@ -78,7 +81,6 @@ export default function IssueCertificatePage() {
 
     try {
       const text = await file.text();
-      
       const lines = text.split(/\r\n|\n/).filter(line => line.trim() !== '');
       const recipients: Recipient[] = [];
 
@@ -94,13 +96,14 @@ export default function IssueCertificatePage() {
             name: parts[0],
             email: parts[1],
             identifier: parts[2] || '',
+            expiresAt: parts[3] || globalExpiresAt || '',
           });
         }
       }
 
       setParsedRecipients(recipients);
       if (recipients.length === 0) {
-        setError('Nisu pronađeni validni redovi u CSV fajlu. Format: Ime, Email, Identifikator');
+        setError('Nisu pronađeni validni redovi u CSV fajlu. Format: Ime, Email, Identifikator, DatumIsteka (opcionalno)');
       }
     } catch (err) {
       setError('Greška prilikom čitanja CSV fajla.');
@@ -164,7 +167,12 @@ export default function IssueCertificatePage() {
           const lines = bulkData.split('\n').filter(line => line.trim() !== '');
           recipients = lines.map(line => {
             const parts = line.split(',').map(s => s?.trim());
-            return { name: parts[0] || '', email: parts[1] || '', identifier: parts[2] || '' };
+            return { 
+              name: parts[0] || '', 
+              email: parts[1] || '', 
+              identifier: parts[2] || '',
+              expiresAt: parts[3] || globalExpiresAt || undefined
+            };
           });
         }
 
@@ -179,18 +187,20 @@ export default function IssueCertificatePage() {
             institution: institutionName, 
             certificateType: finalCertType, 
             recipients,
-            metadata: metadataObj 
+            metadata: metadataObj,
+            expiresAt: globalExpiresAt || null // Proslijeđujemo i globalni rok ako postoji
           }),
         });
 
         const data = await res.json();
         if (!res.ok) throw new Error(data.error || 'Greška pri masovnom izdavanju.');
 
-        setSuccessMsg(`Uspješno izdano ${recipients.length} certifikata i poslano na e-mail adrese!`);
+        setSuccessMsg(`Uspješno izdato ${recipients.length} certifikata i poslano na e-mail adrese!`);
         setBulkData('');
         setParsedRecipients([]);
         setFileName('');
         setCustomFields([]);
+        setGlobalExpiresAt('');
       } else {
         const res = await fetch('/api/certificates/issue', {
           method: 'POST',
@@ -201,6 +211,7 @@ export default function IssueCertificatePage() {
             studentName, 
             studentEmail,
             identifier,
+            expiresAt: expiresAt || null, // NOVO: Proslijeđujemo rok trajanja
             metadata: metadataObj
           }),
         });
@@ -208,10 +219,11 @@ export default function IssueCertificatePage() {
         const data = await res.json();
         if (!res.ok) throw new Error(data.error || 'Greška pri izdavanju certifikata.');
 
-        setSuccessMsg('Certifikat uspješno izdan, zabilježen na Base blockchain mreži i poslan studentu na e-mail!');
+        setSuccessMsg('Certifikat uspješno izdat, zabilježen na Base blockchain mreži i poslan studentu na e-mail!');
         setStudentName('');
         setStudentEmail('');
         setIdentifier('');
+        setExpiresAt(''); // Reset polja
         setCustomFields([]);
       }
     } catch (err: any) {
@@ -323,22 +335,48 @@ export default function IssueCertificatePage() {
                 </div>
               </div>
 
-              <div>
-                <label className="block text-xs font-semibold uppercase tracking-wider text-slate-500 mb-2">Identifikator / Broj indeksa</label>
-                <input
-                  type="text"
-                  value={identifier}
-                  onChange={(e) => setIdentifier(e.target.value)}
-                  placeholder="npr. IND-2023-45"
-                  className="w-full p-4 rounded-xl bg-slate-50 border border-slate-300 text-slate-900 placeholder:text-slate-400 text-sm focus:outline-none focus:border-blue-600 focus:bg-white transition"
-                  required
-                />
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-xs font-semibold uppercase tracking-wider text-slate-500 mb-2">Identifikator / Broj indeksa</label>
+                  <input
+                    type="text"
+                    value={identifier}
+                    onChange={(e) => setIdentifier(e.target.value)}
+                    placeholder="npr. IND-2023-45"
+                    className="w-full p-4 rounded-xl bg-slate-50 border border-slate-300 text-slate-900 placeholder:text-slate-400 text-sm focus:outline-none focus:border-blue-600 focus:bg-white transition"
+                    required
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold uppercase tracking-wider text-slate-500 mb-2">
+                    Rok trajanja / Istek <span className="text-slate-400 font-normal lowercase">(opcionalno)</span>
+                  </label>
+                  <input
+                    type="date"
+                    value={expiresAt}
+                    onChange={(e) => setExpiresAt(e.target.value)}
+                    className="w-full p-4 rounded-xl bg-slate-50 border border-slate-300 text-slate-900 text-sm focus:outline-none focus:border-blue-600 focus:bg-white transition"
+                  />
+                </div>
               </div>
             </div>
           ) : (
             <div className="space-y-4">
+              {/* Opcijski globalni rok trajanja za cijeli batch */}
+              <div>
+                <label className="block text-xs font-semibold uppercase tracking-wider text-slate-500 mb-2">
+                  Zajednički rok trajanja za sve certifikate <span className="text-slate-400 font-normal lowercase">(opcionalno, ostavite prazno za doživotno)</span>
+                </label>
+                <input
+                  type="date"
+                  value={globalExpiresAt}
+                  onChange={(e) => setGlobalExpiresAt(e.target.value)}
+                  className="w-full p-4 rounded-xl bg-slate-50 border border-slate-300 text-slate-900 text-sm focus:outline-none focus:border-blue-600 focus:bg-white transition"
+                />
+              </div>
+
               {/* Izbor načina unosa za masovno (Fajl ili Tekst) */}
-              <div className="flex gap-2 border-b border-slate-200 pb-3">
+              <div className="flex gap-2 border-b border-slate-200 pb-3 pt-2">
                 <button
                   type="button"
                   onClick={() => setBulkModeType('file')}
@@ -363,10 +401,10 @@ export default function IssueCertificatePage() {
                     onChange={handleFileUpload}
                     className="w-full text-sm text-slate-500 file:mr-4 file:py-2.5 file:px-4 file:rounded-xl file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100 cursor-pointer"
                   />
-                  <p className="text-xs text-slate-400 mt-2">Format CSV fajla u redu: <code className="text-slate-600">Ime i Prezime, Email, Identifikator</code></p>
+                  <p className="text-xs text-slate-400 mt-2">Format CSV fajla u redu: <code className="text-slate-600">Ime i Prezime, Email, Identifikator, DatumIsteka(YYYY-MM-DD)</code></p>
                   <p className="text-[11px] text-amber-700 bg-amber-50 border border-amber-200 p-2 rounded-lg mt-2 inline-block"><strong>Napomena:</strong> Prilikom snimanja CSV fajla, izaberite opciju 
                   <strong> CSV UTF-8 (Comma delimited)</strong> kako bi dijakritički znakovi (č, ć, š, ž, đ) bili ispravno prikazani.
-    </p>
+                  </p>
                   {fileName && (
                     <div className="mt-4 text-xs font-semibold text-emerald-600 bg-emerald-50 p-2.5 rounded-xl border border-emerald-200">
                       Učitan fajl: {fileName} ({parsedRecipients.length} primatelja spremno)
@@ -376,16 +414,16 @@ export default function IssueCertificatePage() {
               ) : (
                 <div>
                   <label className="block text-xs font-semibold uppercase tracking-wider text-slate-500 mb-2">
-                    Masovni unos (Format: Ime i Prezime, Email, Identifikator - svaki u novi red)
+                    Masovni unos (Format: Ime, Email, Identifikator, DatumIsteka - svaki u novi red)
                   </label>
                   <textarea
                     rows={5}
                     value={bulkData}
                     onChange={(e) => setBulkData(e.target.value)}
-                    placeholder="Amar Memić, amar@memic.ba, IND-2023-45&#10;Emina Hadžić, emina@hadzic.ba, IND-2023-46"
+                    placeholder="Amar Memić, amar@memic.ba, IND-2023-45, 2028-12-31&#10;Emina Hadžić, emina@hadzic.ba, IND-2023-46"
                     className="w-full p-4 rounded-xl bg-slate-50 border border-slate-300 text-slate-900 placeholder:text-slate-400 text-sm focus:outline-none focus:border-blue-600 focus:bg-white transition font-mono"
                   />
-                  <p className="text-xs text-slate-400 mt-1">Upišite svakog studenta u novi red odvojeno zarezom (Ime, Email, Identifikator).</p>
+                  <p className="text-xs text-slate-400 mt-1">Upišite svakog studenta u novi red odvojeno zarezom.</p>
                 </div>
               )}
             </div>

@@ -13,6 +13,7 @@ function VerifyContent() {
   const [loading, setLoading] = useState(false);
   const [certData, setCertData] = useState<any>(null);
   const [isRevoked, setIsRevoked] = useState(false);
+  const [isExpired, setIsExpired] = useState(false); // NOVO: Stanje za istek roka
   const [errorMsg, setErrorMsg] = useState('');
 
   // Stanja za oporavak certifikata preko emaila
@@ -33,6 +34,7 @@ function VerifyContent() {
     setErrorMsg('');
     setCertData(null);
     setIsRevoked(false);
+    setIsExpired(false);
 
     try {
       const res = await fetch(`/api/certificates/verify?q=${encodeURIComponent(queryVal.trim())}`);
@@ -47,6 +49,15 @@ function VerifyContent() {
       if (data.success) {
         setCertData(data.certificate);
         setIsRevoked(false);
+
+        // NOVO: Provjera da li je istekao rok trajanja
+        if (data.certificate.expires_at) {
+          const expiryDate = new Date(data.certificate.expires_at);
+          const now = new Date();
+          if (expiryDate < now) {
+            setIsExpired(true);
+          }
+        }
       } else if (data.isRevoked) {
         setCertData(data.certificate);
         setIsRevoked(true);
@@ -147,11 +158,16 @@ function VerifyContent() {
 
       {/* Kartica rezultata */}
       {certData && (
-        <div className={`bg-white border rounded-2xl p-6 shadow-xl relative overflow-hidden mb-12 ${isRevoked ? 'border-rose-300 bg-rose-50/30' : 'border-emerald-200'}`}>
+        <div className={`bg-white border rounded-2xl p-6 shadow-xl relative overflow-hidden mb-12 ${isRevoked ? 'border-rose-300 bg-rose-50/30' : isExpired ? 'border-amber-300 bg-amber-50/30' : 'border-emerald-200'}`}>
           
+          {/* Badge u uglu */}
           {isRevoked ? (
-            <div className="absolute top-0 right-0 bg-rose-600 text-white text-xs font-extrabold px-4 py-1.5 rounded-bl-xl shadow-xs">
+            <div className="absolute top-0 right-0 bg-rose-600 text-white text-xs font-bold px-4 py-1.5 rounded-bl-xl shadow-xs">
               DOKUMENT JE PONIŠTEN
+            </div>
+          ) : isExpired ? (
+            <div className="absolute top-0 right-0 bg-amber-600 text-white text-xs font-bold px-4 py-1.5 rounded-bl-xl shadow-xs">
+              DOKUMENT JE ISTEKAO
             </div>
           ) : (
             <div className="absolute top-0 right-0 bg-emerald-100 text-emerald-800 text-xs font-bold px-4 py-1 rounded-bl-xl border-l border-b border-emerald-200">
@@ -159,20 +175,32 @@ function VerifyContent() {
             </div>
           )}
 
+          {/* Statusna poruka unutra */}
           {isRevoked ? (
             <div className="mb-6 p-4 bg-rose-100 border border-rose-200 rounded-xl">
               <div className="flex items-center gap-3 text-rose-800 font-bold mb-1">
                 <span className="w-3 h-3 rounded-full bg-rose-600 animate-ping"></span>
                 Upozorenje: Dokument više nije važeći
               </div>
-              <p className="text-xs text-rose-700 font-medium">
-                {errorMsg}
+              <p className="text-xs text-rose-700 font-medium">{errorMsg}</p>
+            </div>
+          ) : isExpired ? (
+            <div className="mb-6 p-4 bg-amber-100 border border-amber-200 rounded-xl">
+              <div className="flex items-center gap-3 text-amber-900 font-bold mb-1">
+                <span className="w-3 h-3 rounded-full bg-amber-600 animate-ping"></span>
+                Upozorenje: Rok važenja certifikata je istekao
+              </div>
+              <p className="text-xs text-amber-800 font-medium">
+                Ovaj certifikat je bio validan, ali mu je rok istekao dana {(() => {
+                  const d = new Date(certData.expires_at);
+                  return `${String(d.getDate()).padStart(2, '0')}.${String(d.getMonth() + 1).padStart(2, '0')}.${d.getFullYear()}.`;
+                })()}
               </p>
             </div>
           ) : (
             <div className="flex items-center gap-3 text-emerald-700 font-bold mb-4">
               <span className="w-3 h-3 rounded-full bg-emerald-500 animate-pulse"></span>
-              Dokument je 100% autentičan
+              Dokument je 100% autentičan i važeći
             </div>
           )}
 
@@ -195,6 +223,14 @@ function VerifyContent() {
                 <div>
                   <span className="text-xs text-slate-400 uppercase tracking-wider block font-semibold">Broj indeksa / Identifikator</span>
                   <p className="text-slate-800 font-semibold">{certData.identifier}</p>
+                </div>
+              )}
+              {certData.expires_at && (
+                <div>
+                  <span className="text-xs text-slate-400 uppercase tracking-wider block font-semibold">Rok važenja (Vrijedi do)</span>
+                  <p className={`font-semibold ${isExpired ? 'text-amber-700' : 'text-slate-800'}`}>
+                    {new Date(certData.expires_at).toLocaleDateString('bs-BA')}
+                  </p>
                 </div>
               )}
             </div>
@@ -234,11 +270,14 @@ function VerifyContent() {
             </div>
 
             <div className="flex justify-between items-center text-xs text-slate-400 pt-2 font-medium">
-              <span>Status: <strong className={isRevoked ? 'text-rose-600' : 'text-emerald-600'}>{isRevoked ? 'Poništen / Opozvan' : 'Aktivan'}</strong></span>
+              <span>Status: <strong className={isRevoked ? 'text-rose-600' : isExpired ? 'text-amber-600' : 'text-emerald-600'}>
+                {isRevoked ? 'Poništen / Opozvan' : isExpired ? 'Istekao rok' : 'Aktivan'}
+              </strong></span>
               <span>Izdato: {certData.created_at ? new Date(certData.created_at).toLocaleDateString('bs-BA') : 'N/A'}</span>
             </div>
-            {/* NOVO: Dugme za preuzimanje PDF certifikata ako je dokument validan */}
-            {!isRevoked && (
+
+            {/* Dugme za preuzimanje PDF certifikata prikazuje se SAMO ako je dokument aktivan (nije poništen i nije istekao) */}
+            {!isRevoked && !isExpired && (
               <div className="pt-4 border-t border-slate-100 flex justify-end">
                 <a
                   href={`/api/certificates/${certData.certificate_hash}/pdf`}

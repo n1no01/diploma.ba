@@ -3,7 +3,7 @@ import { Pool } from 'pg';
 import { ethers } from 'ethers';
 import { sendCertificateEmail } from '../../../lib/email';
 import { getServerSession } from 'next-auth';
-import { computeCertHash } from '../../../lib/certHash'; // ili odgovarajuća putanja
+import { computeCertHash } from '../../../lib/certHash';
 
 const pool = new Pool({
   connectionString: process.env.DATABASE_URL,
@@ -41,7 +41,8 @@ export async function POST(req: Request) {
     const institutionName = instCheck.rows[0].name;
 
     const body = await req.json();
-    const { studentName, studentEmail, certificateType, identifier, metadata } = body;
+    // DODANO: Izvlačimo i expiresAt iz tijela zahtjeva
+    const { studentName, studentEmail, certificateType, identifier, metadata, expiresAt } = body;
 
     if (!studentEmail || !studentName) {
       client.release();
@@ -55,6 +56,9 @@ export async function POST(req: Request) {
     const validMetadata = metadata && typeof metadata === 'object' ? metadata : {};
     const metadataString = JSON.stringify(validMetadata);
     const cleanIdentifier = identifier ? identifier.trim() : '';
+    
+    // Obrada datuma isteka (ako je proslijeđen, pretvaramo ga u format za bazu, inače je null)
+    const finalExpiresAt = expiresAt ? new Date(expiresAt) : null;
 
     // Računanje hasha preko centralne funkcije
     const certificateHash = computeCertHash({
@@ -96,12 +100,13 @@ export async function POST(req: Request) {
       );
     }
 
+    // DODANO: Uključena kolona expires_at u INSERT upit ($9)
     const queryText = `
       INSERT INTO certificates (
         student_name, student_email, identifier, certificate_type, 
-        institution_id, metadata, certificate_hash, tx_hash, status, created_at
+        institution_id, metadata, certificate_hash, tx_hash, expires_at, status, created_at
       )
-      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, 'active', NOW())
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, 'active', NOW())
       RETURNING id;
     `;
     
@@ -113,7 +118,8 @@ export async function POST(req: Request) {
       institutionId, 
       metadataString, 
       certificateHash, 
-      txHash
+      txHash,
+      finalExpiresAt // Vrijednost za expires_at ($9)
     ];
 
     const result = await client.query(queryText, values);
@@ -134,7 +140,7 @@ export async function POST(req: Request) {
 
     return NextResponse.json({
       success: true,
-      message: 'Certifikat uspješno izdan i zaveden na blockchain!',
+      message: 'Certifikat uspješno izdat i zaveden na blockchain!',
       certificateId: result.rows[0].id,
       txHash,
     });

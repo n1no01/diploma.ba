@@ -57,7 +57,7 @@ export async function POST(req: Request) {
       .join('');
 
     await resend.emails.send({
-      from: 'diploma.ba <onboarding@resend.dev>',
+      from: 'diploma.ba <noreply@diploma.ba>',
       to: [email.trim()],
       subject: 'Oporavak vaših diploma i certifikata - diploma.ba',
       html: `

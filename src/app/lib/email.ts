@@ -94,7 +94,7 @@ export async function sendCertificateEmail({
 
     // 2. Šaljemo mail preko Resend-a sa zakačenim PDF-om
     const data = await resend.emails.send({
-      from: 'diploma.ba <onboarding@resend.dev>',
+      from: 'diploma.ba <noreply@diploma.ba>',
       to: [studentEmail],
       subject: `Izdana vam je zvanična diploma/certifikat - ${institutionName}`,
       html: `

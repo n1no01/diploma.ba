@@ -40,7 +40,7 @@ export default function RecoveryPage() {
       <div className="bg-slate-900 border border-slate-800 rounded-3xl p-8 shadow-2xl text-center">
         <h1 className="text-2xl font-bold text-white mb-2">Zaboravili ste vaše certifikate?</h1>
         <p className="text-slate-400 text-sm mb-6">
-          Unesite vašu email adresu na koju su diplome izdane. Poslaćemo vam zbirni email sa svim verifikacijskim linkovima.
+          Unesite vašu email adresu na koju su certifikati izdati. Poslat ćemo vam zbirni email sa svim verifikacijskim linkovima.
         </p>
 
         <form onSubmit={handleSubmit} className="space-y-4">

@@ -43,7 +43,8 @@ export async function POST(request: Request) {
     const verifiedInstitutionName = instCheck.rows[0].name;
 
     const body = await request.json();
-    const { certificateType, recipients, metadata } = body;
+    // DODANO: Izvlačimo i expiresAt iz tijela zahtjeva (može biti zajednički za cijeli batch ili po primatelju, ovdje uzimamo globalni ili opcionalni iz root-a, prilagodi ako ide po primatelju)
+    const { certificateType, recipients, metadata, expiresAt } = body;
 
     if (!certificateType || !recipients || !Array.isArray(recipients) || recipients.length === 0) {
       client.release();
@@ -64,6 +65,9 @@ export async function POST(request: Request) {
     const finalCertType = certificateType || 'Diploma o završenom studiju';
     const validMetadata = metadata && typeof metadata === 'object' ? metadata : {};
     const metadataString = JSON.stringify(validMetadata);
+    
+    // Obrada datuma isteka za cijeli batch (ili možeš mapirati unutar recipienta ako svaki ima svoj)
+    const finalExpiresAt = expiresAt ? new Date(expiresAt) : null;
 
     const processedRecipients = recipients
       .filter((r: any) => r.name && r.email)
@@ -87,6 +91,8 @@ export async function POST(request: Request) {
           identifier: identifier || null,
           metadata: metadataString,
           certificateHash: certificateHash,
+          // Ako želiš da svaki primatelj u batchu može imati svoj expiresAt, stavi r.expiresAt ovdje:
+          expiresAt: r.expiresAt ? new Date(r.expiresAt) : finalExpiresAt,
         };
       });
 
@@ -139,7 +145,7 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Blockchain greška pri izdavanju.' }, { status: 500 });
     }
 
-    // 3. UPIS U BAZU (Ispravljen catch - nema duplog release()!)
+    // 3. UPIS U BAZU
     try {
       await client.query('BEGIN');
       const insertedCertificates = [];
@@ -148,15 +154,22 @@ export async function POST(request: Request) {
         const query = `
           INSERT INTO certificates (
             institution_id, certificate_type, student_name, student_email, 
-            identifier, metadata, certificate_hash, tx_hash, status, created_at
+            identifier, metadata, certificate_hash, tx_hash, expires_at, status, created_at
           )
-          VALUES ($1, $2, $3, $4, $5, $6, $7, $8, 'active', NOW())
-          RETURNING id, student_name, student_email, identifier, metadata, certificate_hash, tx_hash;
+          VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, 'active', NOW())
+          RETURNING id, student_name, student_email, identifier, metadata, certificate_hash, tx_hash, expires_at;
         `;
 
         const values = [
-          institutionId, finalCertType, recipient.name, recipient.email, 
-          recipient.identifier, recipient.metadata, recipient.certificateHash, txHash,
+          institutionId, 
+          finalCertType, 
+          recipient.name, 
+          recipient.email, 
+          recipient.identifier, 
+          recipient.metadata, 
+          recipient.certificateHash, 
+          txHash,
+          recipient.expiresAt // Vrijednost za expires_at ($9)
         ];
         
         const res = await client.query(query, values);
@@ -181,14 +194,13 @@ export async function POST(request: Request) {
 
       return NextResponse.json({
         success: true,
-        message: `Uspješno batch izdano ${insertedCertificates.length} certifikata kroz 1 transakciju!`,
+        message: `Uspješno batch izdato ${insertedCertificates.length} certifikata kroz 1 transakciju!`,
         certificates: insertedCertificates,
         txHash,
       });
 
     } catch (dbError) {
       await client.query('ROLLBACK');
-      // UKLONJEN client.release() OVDJE — vanjski catch će odraditi release jednom!
       throw dbError;
     }
 

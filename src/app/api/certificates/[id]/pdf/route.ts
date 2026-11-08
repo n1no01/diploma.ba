@@ -16,9 +16,8 @@ export async function GET(
     const resolvedParams = await params; 
     const certHash = resolvedParams.id;   
 
-    // Povlačimo i logo_url iz tabele institutions
     const result = await pool.query(
-      `SELECT c.id, c.student_name, c.certificate_type, c.identifier, c.certificate_hash, c.tx_hash, c.status, c.created_at, 
+      `SELECT c.id, c.student_name, c.certificate_type, c.identifier, c.certificate_hash, c.tx_hash, c.status, c.expires_at, c.created_at, 
               i.name as institution_name, i.logo_url 
        FROM certificates c
        JOIN institutions i ON c.institution_id = i.id
@@ -36,7 +35,7 @@ export async function GET(
       return NextResponse.json({ error: 'Ovaj certifikat je poništen od strane izdavača.' }, { status: 400 });
     }
 
-    // 1. Preuzimanje logotipa u letu (ako postoji URL)
+    // 2. Preuzimanje logotipa u letu (ako postoji URL)
     let logoBuffer: Buffer | null = null;
     if (cert.logo_url) {
       try {
@@ -47,11 +46,10 @@ export async function GET(
         }
       } catch (logoErr) {
         console.error('Greška pri učitavanju logotipa institucije:', logoErr);
-        // Nastavljamo bez logotipa ako dođe do mrežne greške
       }
     }
 
-    // 2. Generisanje QR koda
+    // 3. Generisanje QR koda
     const verifyUrl = `${process.env.APP_URL || 'https://diploma.ba'}/verifikuj?hash=${cert.certificate_hash}`;
     const qrCodeBuffer = await QRCode.toBuffer(verifyUrl, {
       type: 'png',
@@ -94,11 +92,11 @@ export async function GET(
 
     let currentY = 55;
 
-    // Ako postoji logotip, iscrtavamo ga centrirano na vrhu (visina ~50px)
+    // Ako postoji logotip, iscrtavamo ga centrirano na vrhu
     if (logoBuffer) {
       try {
         doc.image(logoBuffer, pageWidth / 2 - 30, currentY, { width: 60, height: 60, fit: [60, 60] });
-        currentY += 70; // Pomjeramo ostatak sadržaja naniže da napravimo mjesta za logo
+        currentY += 70;
       } catch (err) {
         console.error('Neuspješno renderovanje logotipa u PDF-u:', err);
         currentY += 15;
@@ -116,7 +114,7 @@ export async function GET(
 
     currentY += 45;
 
-    // 2. Naziv dokumenta (sa automatskim smanjivanjem fonta)
+    // 2. Naziv dokumenta
     let certTitleSize = 28;
     const rawCertTitle = cert.certificate_type ? cert.certificate_type.toUpperCase() : 'CERTIFIKAT';
     doc.font('Roboto-Bold').fontSize(certTitleSize);
@@ -151,7 +149,7 @@ export async function GET(
       .fillColor('#0f172a')
       .text(rawStudentName, 60, currentY, { align: 'center', width: contentWidth });
 
-    // Linija razdvajanja na fiksnoj poziciji
+    // Linija razdvajanja
     doc
       .moveTo(221, 350)
       .lineTo(pageWidth - 221, 350)
@@ -162,11 +160,20 @@ export async function GET(
     // --- DONJI DIO (Tehnički podaci lijevo, QR kod desno) ---
     const bottomY = 410;
 
+    // Kreiramo string za datume (Izdato + Rok trajanja ako postoji)
+    const issueDateStr = new Date(cert.created_at).toLocaleDateString('bs-BA');
+    let datesText = `Datum izdavanja: ${issueDateStr}`;
+    
+    if (cert.expires_at) {
+      const expiryDateStr = new Date(cert.expires_at).toLocaleDateString('bs-BA');
+      datesText += `  |  Rok važenja (Vrijedi do): ${expiryDateStr}`;
+    }
+
     doc
       .font('Roboto-Regular')
       .fontSize(9)
       .fillColor('#64748b')
-      .text(`Datum izdavanja: ${new Date(cert.created_at).toLocaleDateString('bs-BA')}`, 60, bottomY);
+      .text(datesText, 60, bottomY);
 
     doc
       .font('Roboto-Regular')

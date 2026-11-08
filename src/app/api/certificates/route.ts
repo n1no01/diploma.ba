@@ -7,6 +7,7 @@ const pool = new Pool({
 });
 
 export async function GET(request: Request) {
+  let client;
   try {
     const session = await getServerSession();
     if (!session || !session.user?.email) {
@@ -14,11 +15,18 @@ export async function GET(request: Request) {
     }
 
     const institutionEmail = session.user.email;
-    const client = await pool.connect();
+    client = await pool.connect();
 
-    // Dohvatamo certifikate spojene sa ulogovanom institucijom preko ID-ja
-   const result = await client.query(
-      `SELECT c.*, i.name AS institution_name 
+    // Dohvatamo certifikate i dinamički računamo status (active / expired / revoked)
+    const result = await client.query(
+      `SELECT 
+         c.*, 
+         i.name AS institution_name,
+         CASE 
+           WHEN c.status = 'revoked' THEN 'revoked'
+           WHEN c.expires_at IS NOT NULL AND c.expires_at < NOW() THEN 'expired'
+           ELSE 'active'
+         END AS computed_status
        FROM certificates c
        JOIN institutions i ON c.institution_id = i.id
        WHERE i.email = $1
@@ -34,6 +42,7 @@ export async function GET(request: Request) {
     });
 
   } catch (error: any) {
+    if (client) client.release();
     console.error('Greška pri dohvatu certifikata:', error);
     return NextResponse.json(
       { error: 'Greška na serveru pri učitavanju certifikata.' },

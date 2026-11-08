@@ -12,6 +12,8 @@ interface Certificate {
   certificate_hash: string;
   tx_hash?: string;
   status?: string;
+  expires_at?: string;       
+  computed_status?: string;   
   created_at: string;
 }
 
@@ -202,7 +204,7 @@ export default function DashboardPage() {
             Dobrodošli, {session?.user?.name || 'Ustanova'}
           </h1>
           <p className="text-slate-500 text-sm mt-1">
-            Pregled i pretraga svih izdanih certifikata i diploma vaše ustanove.
+            Pregled i pretraga svih izdatih certifikata i diploma vaše ustanove.
           </p>
         </div>
 
@@ -285,7 +287,7 @@ export default function DashboardPage() {
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-6 mb-8">
         <div className="bg-white border border-slate-200 p-6 rounded-2xl shadow-sm">
           <p className="text-xs font-semibold uppercase tracking-wider text-slate-400">
-            Ukupno izdanih
+            Ukupno izdatih
           </p>
           <p className="text-3xl font-bold text-slate-900 mt-2">{certificates.length}</p>
         </div>
@@ -381,61 +383,70 @@ export default function DashboardPage() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
-                {filteredCertificates.map((cert) => (
-                  <tr key={cert.id} className="hover:bg-slate-50/80 transition">
-                    <td className="px-6 py-4 font-semibold text-slate-900">
-                      {cert.student_name}
-                    </td>
-                    <td className="px-6 py-4 text-slate-500">{cert.student_email}</td>
-                    <td className="px-6 py-4">
-                      <span className="px-3 py-1 rounded-full text-xs font-semibold bg-blue-50 text-blue-700 border border-blue-200">
-                        {cert.certificate_type}
-                      </span>
-                    </td>
-                    <td className="px-6 py-4">
-                      {cert.status === 'revoked' ? (
-                        <span className="px-2.5 py-1 rounded-lg text-xs font-bold bg-rose-100 text-rose-700">
-                          Poništen
+                {filteredCertificates.map((cert) => {
+                  const isRevoked = cert.status === 'revoked' || cert.computed_status === 'revoked';
+                  const isExpired = cert.computed_status === 'expired';
+
+                  return (
+                    <tr key={cert.id} className="hover:bg-slate-50/80 transition">
+                      <td className="px-6 py-4 font-semibold text-slate-900">
+                        {cert.student_name}
+                      </td>
+                      <td className="px-6 py-4 text-slate-500">{cert.student_email}</td>
+                      <td className="px-6 py-4">
+                        <span className="px-3 py-1 rounded-full text-xs font-semibold bg-blue-50 text-blue-700 border border-blue-200">
+                          {cert.certificate_type}
                         </span>
-                      ) : (
-                        <span className="px-2.5 py-1 rounded-lg text-xs font-bold bg-emerald-100 text-emerald-700">
-                          Aktivan
-                        </span>
-                      )}
-                    </td>
-                    <td className="px-6 py-4 font-mono text-xs">
-                      {cert.tx_hash ? (
-                       <a
-                          href={`https://basescan.org/tx/${cert.tx_hash}`}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="text-blue-600 hover:underline font-semibold inline-flex items-center gap-1"
-                        >
-                          Pregledaj ↗
-                        </a>
-                      ) : (
-                        <span className="text-slate-400">N/A</span>
-                      )}
-                    </td>
-                    <td className="px-6 py-4 text-slate-500 text-xs">
-                      {new Date(cert.created_at).toLocaleDateString('bs-BA', {
-                        day: '2-digit',
-                        month: '2-digit',
-                        year: 'numeric',
-                      })}
-                    </td>
-                    <td className="px-6 py-4 text-right">
-                      {cert.status !== 'revoked' && (
-                        <button
-                          onClick={() => handleRevoke(cert.certificate_hash)}
-                          className="px-3 py-1.5 rounded-xl text-xs font-semibold bg-rose-50 text-rose-600 hover:bg-rose-600 hover:text-white transition border border-rose-200 cursor-pointer"
-                        >
-                          Poništi
-                        </button>
-                      )}
-                    </td>
-                  </tr>
-                ))}
+                      </td>
+                      <td className="px-6 py-4">
+                        {isRevoked ? (
+                          <span className="px-2.5 py-1 rounded-lg text-xs font-bold bg-rose-100 text-rose-700">
+                            Poništen
+                          </span>
+                        ) : isExpired ? (
+                          <span className="px-2.5 py-1 rounded-lg text-xs font-bold bg-amber-100 text-amber-800">
+                            Istekao
+                          </span>
+                        ) : (
+                          <span className="px-2.5 py-1 rounded-lg text-xs font-bold bg-emerald-100 text-emerald-700">
+                            Aktivan
+                          </span>
+                        )}
+                      </td>
+                      <td className="px-6 py-4 font-mono text-xs">
+                        {cert.tx_hash ? (
+                         <a
+                           href={`https://basescan.org/tx/${cert.tx_hash}`}
+                           target="_blank"
+                           rel="noopener noreferrer"
+                           className="text-blue-600 hover:underline font-semibold inline-flex items-center gap-1"
+                         >
+                           Pregledaj ↗
+                         </a>
+                        ) : (
+                          <span className="text-slate-400">N/A</span>
+                        )}
+                      </td>
+                      <td className="px-6 py-4 text-slate-500 text-xs">
+                        {new Date(cert.created_at).toLocaleDateString('bs-BA', {
+                          day: '2-digit',
+                          month: '2-digit',
+                          year: 'numeric',
+                        })}
+                      </td>
+                      <td className="px-6 py-4 text-right">
+                        {!isRevoked && (
+                          <button
+                            onClick={() => handleRevoke(cert.certificate_hash)}
+                            className="px-3 py-1.5 rounded-xl text-xs font-semibold bg-rose-50 text-rose-600 hover:bg-rose-600 hover:text-white transition border border-rose-200 cursor-pointer"
+                          >
+                            Poništi
+                          </button>
+                        )}
+                      </td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           </div>

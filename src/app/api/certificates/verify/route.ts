@@ -73,12 +73,12 @@ export async function GET(request: Request) {
       );
     }
 
-    // 2. Dohvaćanje iz baze
+    // 2. Dohvaćanje iz baze (DODANO: c.expires_at)
     const result = await pool.query(
       `SELECT 
-         c.id, c.student_name, c.student_email, c.identifier, c.institution_id,
-         i.name AS institution_name, c.certificate_type, c.metadata, 
-         c.certificate_hash, c.tx_hash, c.status, c.created_at 
+          c.id, c.student_name, c.student_email, c.identifier, c.institution_id,
+          i.name AS institution_name, c.certificate_type, c.metadata, 
+          c.certificate_hash, c.tx_hash, c.status, c.expires_at, c.created_at 
        FROM certificates c
        JOIN institutions i ON c.institution_id = i.id
        WHERE LOWER(c.certificate_hash) = LOWER($1)
@@ -129,6 +129,7 @@ export async function GET(request: Request) {
       }, { status: 200 });
     }
 
+    // Sigurni objekat za frontend (DODANO: expires_at)
     const safeCertificate = {
       id: certificate.id,
       student_name: certificate.student_name,
@@ -139,6 +140,7 @@ export async function GET(request: Request) {
       certificate_hash: certificate.certificate_hash,
       tx_hash: certificate.tx_hash,
       status: certificate.status,
+      expires_at: certificate.expires_at, // OVO JE NEDOSTAJALO
       created_at: certificate.created_at,
     };
 
