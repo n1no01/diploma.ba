@@ -9,15 +9,17 @@ export async function GET() {
   try {
     const client = await pool.connect();
 
-    // Broj izdatih certifikata
-    const certResult = await client.query('SELECT COUNT(*) FROM certificates');
-    const totalCertificates = parseInt(certResult.rows[0].count, 10);
-
-    // Broj jedinstvenih ustanova (ili ukupan broj iz tablice institutions)
-    const instResult = await client.query('SELECT COUNT(*) FROM institutions');
-    const totalInstitutions = parseInt(instResult.rows[0].count, 10);
+    // Jedan optimizovani upit koji dohvata oba broja u jednoj konekciji
+    const statsResult = await client.query(`
+      SELECT 
+        (SELECT COUNT(*) FROM certificates) AS total_certificates,
+        (SELECT COUNT(*) FROM institutions WHERE role != 'ADMIN' AND is_approved = true) AS total_institutions
+    `);
 
     client.release();
+
+    const totalCertificates = parseInt(statsResult.rows[0].total_certificates, 10);
+    const totalInstitutions = parseInt(statsResult.rows[0].total_institutions, 10);
 
     return NextResponse.json({
       success: true,
