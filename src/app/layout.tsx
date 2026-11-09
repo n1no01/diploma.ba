@@ -11,6 +11,9 @@ export const metadata: Metadata = {
     template: '%s | diploma.ba',
   },
   description: 'Sigurna B2B/B2G platforma za izdavanje i instant verifikaciju digitalnih certifikata i diploma na Base blockchainu bez lažiranja.',
+  icons: {
+    icon: '/icon.svg',
+  },
   keywords: [
     'diploma.ba',
     'verifikacija diploma',
