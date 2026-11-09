@@ -106,7 +106,7 @@ export default function Home() {
       </div>
 
       {/* Dinamička Statistika iz Baze */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-6 w-full mt-24 py-10 px-8 rounded-3xl bg-white border border-slate-200 backdrop-blur-md text-center shadow-xl">
+      <section className="grid grid-cols-2 md:grid-cols-4 gap-6 w-full mt-24 py-10 px-8 rounded-3xl bg-white border border-slate-200 backdrop-blur-md text-center shadow-xl">
         <div>
           <p className="text-3xl font-extrabold text-blue-600">{stats.totalCertificates}</p>
           <p className="text-xs text-slate-500 mt-1 uppercase tracking-wider font-semibold">Izdatih certifikata</p>
@@ -123,34 +123,34 @@ export default function Home() {
           <p className="text-3xl font-extrabold text-blue-600">&lt; 1s</p>
           <p className="text-xs text-slate-500 mt-1 uppercase tracking-wider font-semibold">Brzina provjere</p>
         </div>
-      </div>
+      </section>
 
       {/* Kratki vodič za korisnike */}
-      <div id="kako-radi" className="w-full mt-24 text-left scroll-mt-24">
+      <section id="kako-radi" className="w-full mt-24 text-left scroll-mt-24">
         <div className="text-center max-w-2xl mx-auto mb-16">
           <h2 className="text-2xl md:text-3xl font-bold text-slate-900">Kako provjeriti certifikat u 3 koraka</h2>
           <p className="text-slate-600 text-sm mt-2">Svaki certifikat ima jedinstveni kod. Nema pretrage po imenu, podaci se vide samo uz taj kod.</p>
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-          <div className="p-6 bg-white rounded-2xl border border-slate-200 shadow-sm">
+          <article className="p-6 bg-white rounded-2xl border border-slate-200 shadow-sm">
             <span className="text-blue-600 font-bold text-lg">01. Otvori link iz maila</span>
             <p className="text-sm text-slate-600 mt-2">Polaznik dobija verifikacijski link u e-mailu i može ga proslijediti poslodavcu.</p>
-          </div>
-          <div className="p-6 bg-white rounded-2xl border border-slate-200 shadow-sm">
+          </article>
+          <article className="p-6 bg-white rounded-2xl border border-slate-200 shadow-sm">
             <span className="text-blue-600 font-bold text-lg">02. Ili zalijepi kod</span>
             <p className="text-sm text-slate-600 mt-2">Ako nemaš link, upiši kod certifikata na stranici Provjera. Registracija nije potrebna.</p>
-          </div>
-          <div className="p-6 bg-white rounded-2xl border border-slate-200 shadow-sm">
+          </article>
+          <article className="p-6 bg-white rounded-2xl border border-slate-200 shadow-sm">
             <span className="text-blue-600 font-bold text-lg">03. Odmah vidiš rezultat</span>
             <p className="text-sm text-slate-600 mt-2">Vidiš ko je izdao certifikat, kome, kada i da li je još važeći. Podaci se uparuju s javnim zapisom na blockchainu.</p>
-          </div>
+          </article>
         </div>
-      </div>
+      </section>
 
       {/* Feature Grid */}
-      <div id="prednosti" className="grid grid-cols-1 md:grid-cols-3 gap-6 mt-24 text-left w-full scroll-mt-24">
-        <div className="p-8 rounded-3xl bg-white border border-slate-200 shadow-sm">
+      <section id="prednosti" className="grid grid-cols-1 md:grid-cols-3 gap-6 mt-24 text-left w-full scroll-mt-24">
+        <article className="p-8 rounded-3xl bg-white border border-slate-200 shadow-sm">
           <div className="w-10 h-10 rounded-xl bg-blue-50 text-blue-600 border border-blue-200 flex items-center justify-center font-bold mb-5">
             01
           </div>
@@ -158,9 +158,9 @@ export default function Home() {
           <p className="text-sm text-slate-600 leading-relaxed">
             Svaki certifikat ima kriptografski otisak. Ako se podaci promijene, provjera to odmah pokaže.
           </p>
-        </div>
+        </article>
 
-        <div className="p-8 rounded-3xl bg-white border border-slate-200 shadow-sm">
+        <article className="p-8 rounded-3xl bg-white border border-slate-200 shadow-sm">
           <div className="w-10 h-10 rounded-xl bg-cyan-50 text-cyan-600 border border-cyan-200 flex items-center justify-center font-bold mb-5">
             02
           </div>
@@ -168,9 +168,9 @@ export default function Home() {
           <p className="text-sm text-slate-600 leading-relaxed">
             Bez mailova i telefoniranja školi. Poslodavac provjeri certifikat za nekoliko sekundi.
           </p>
-        </div>
+        </article>
 
-        <div className="p-8 rounded-3xl bg-white border border-slate-200 shadow-sm">
+        <article className="p-8 rounded-3xl bg-white border border-slate-200 shadow-sm">
           <div className="w-10 h-10 rounded-xl bg-emerald-50 text-emerald-600 border border-emerald-200 flex items-center justify-center font-bold mb-5">
             03
           </div>
@@ -178,8 +178,8 @@ export default function Home() {
           <p className="text-sm text-slate-600 leading-relaxed">
             Nema pretrage po imenu. Certifikat se otvara samo uz jedinstveni kod koji dijeli polaznik.
           </p>
-        </div>
-      </div>
+        </article>
+      </section>
 
       {/* SEKCIJA ZA DONACIJE */}
       <section className="w-full mt-24 bg-slate-900 text-white py-12 px-8 rounded-3xl border border-slate-800 shadow-xl text-left">
@@ -225,7 +225,7 @@ export default function Home() {
       </section>
 
       {/* KOLAPSIBILNA (ACCORDION) FAQ SEKCIJA */}
-      <div id="faq" className="w-full mt-24 text-left scroll-mt-24">
+      <section id="faq" className="w-full mt-24 text-left scroll-mt-24">
         <div className="text-center max-w-2xl mx-auto mb-12">
           <h2 className="text-2xl md:text-3xl font-bold text-slate-900">Često postavljana pitanja</h2>
           <p className="text-slate-600 text-sm mt-2">Sve što trebate znati o digitalnom izdavanju i verifikaciji.</p>
@@ -235,7 +235,7 @@ export default function Home() {
           {faqData.map((faq, index) => {
             const isOpen = openFaq === index;
             return (
-              <div
+              <article
                 key={index}
                 className="bg-white rounded-2xl border border-slate-200 overflow-hidden shadow-2xs transition-all duration-200"
               >
@@ -258,11 +258,11 @@ export default function Home() {
                     {faq.answer}
                   </div>
                 )}
-              </div>
+              </article>
             );
           })}
         </div>
-      </div>
+      </section>
 
       {/* JSON-LD Schema.org FAQPage za AEO/SEO */}
       <script

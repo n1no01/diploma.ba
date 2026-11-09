@@ -42,12 +42,6 @@ export const metadata: Metadata = {
       },
     ],
   },
-  twitter: {
-    card: 'summary_large_image',
-    title: 'diploma.ba | Digitalni certifikati na blockchainu',
-    description: 'Platforma za izdavanje i verifikaciju certifikata bez mogućnosti falsifikovanja.',
-    images: ['/og-image.png'],
-  },
   robots: {
     index: true,
     follow: true,
@@ -69,22 +63,30 @@ export default function RootLayout({
   return (
     <html lang="bs" className="light">
       <head>
-        {/* Schema.org Structured Data za SEO i AI crawlere */}
+        {/* Schema.org Structured Data za SEO, AEO i AI agente */}
         <script
           type="application/ld+json"
           dangerouslySetInnerHTML={{
             __html: JSON.stringify({
               '@context': 'https://schema.org',
-              '@type': 'SoftwareApplication',
-              'name': 'Diploma.ba',
+              '@type': 'Organization',
+              'name': 'diploma.ba',
               'url': 'https://diploma.ba',
-              'applicationCategory': 'BusinessApplication',
-              'operatingSystem': 'Web',
-              'description': 'Sigurna platforma za izdavanje i brzu provjeru digitalnih certifikata i diploma na Base blockchainu.',
-              'offers': {
-                '@type': 'Offer',
-                'price': '0',
-                'priceCurrency': 'BAM'
+              'logo': 'https://diploma.ba/icon.svg',
+              'sameAs': [
+                'https://www.linkedin.com/company/diploma-ba',
+              ],
+              'potentialAction': {
+                '@type': 'SoftwareApplication',
+                'name': 'diploma.ba',
+                'applicationCategory': 'BusinessApplication',
+                'operatingSystem': 'Web',
+                'description': 'Sigurna platforma za izdavanje i brzu provjeru digitalnih certifikata i diploma na Base blockchainu.',
+                'offers': {
+                  '@type': 'Offer',
+                  'price': '0',
+                  'priceCurrency': 'BAM'
+                }
               }
             })
           }}
