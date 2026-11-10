@@ -67,10 +67,21 @@ export default function PublicInstitutionsPage() {
             const CardContent = (
               <div className="bg-white border border-slate-200 p-6 rounded-2xl shadow-sm hover:shadow-md hover:border-cyan-200 transition flex items-center justify-between gap-4 h-full group">
                 <div className="flex items-center gap-4">
-                  {/* Ikona / Inicijal */}
-                  <div className="w-12 h-12 rounded-xl bg-cyan-50 border border-cyan-100 text-cyan-700 font-bold flex items-center justify-center text-lg shrink-0 group-hover:bg-cyan-600 group-hover:text-white transition">
-                    {inst.name.charAt(0).toUpperCase()}
-                  </div>
+                  {/* Učitavanje logotipa ili fallback inicijala */}
+                  {inst.logo_url ? (
+                    <div className="w-12 h-12 rounded-xl bg-slate-50 border border-slate-200 p-1 flex items-center justify-center shrink-0 overflow-hidden">
+                      <img
+                        src={inst.logo_url}
+                        alt={`${inst.name} logo`}
+                        className="max-w-full max-h-full object-contain"
+                      />
+                    </div>
+                  ) : (
+                    <div className="w-12 h-12 rounded-xl bg-cyan-50 border border-cyan-100 text-cyan-700 font-bold flex items-center justify-center text-lg shrink-0 group-hover:bg-cyan-600 group-hover:text-white transition">
+                      {inst.name.charAt(0).toUpperCase()}
+                    </div>
+                  )}
+
                   <div>
                     <h2 className="font-bold text-slate-900 text-base group-hover:text-cyan-600 transition flex items-center gap-1.5">
                       {inst.name}
@@ -92,7 +103,7 @@ export default function PublicInstitutionsPage() {
 
             return webUrl ? (
               <a
-                key={idx}
+                key={inst.id || idx}
                 href={webUrl}
                 target="_blank"
                 rel="noopener noreferrer"
@@ -101,7 +112,7 @@ export default function PublicInstitutionsPage() {
                 {CardContent}
               </a>
             ) : (
-              <div key={idx}>{CardContent}</div>
+              <div key={inst.id || idx}>{CardContent}</div>
             );
           })}
         </div>

@@ -11,7 +11,7 @@ export async function GET() {
     
     // Vraćamo odobrene institucije, ali isključujemo naloge sa ulogom 'ADMIN'
     const result = await client.query(
-      `SELECT name, website, created_at 
+      `SELECT name, website, created_at, logo_url 
        FROM institutions 
        WHERE is_approved = true AND role != 'ADMIN' 
        ORDER BY name ASC`
