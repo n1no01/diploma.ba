@@ -76,6 +76,12 @@ export default function Navbar() {
               >
                 Izdaj Certifikat
               </Link>
+              <Link
+                href="/profil"
+                className={`transition ${isActive('/profil') ? 'text-blue-600 font-semibold' : 'text-slate-600 hover:text-slate-900'}`}
+              >
+                Profil
+              </Link>
             </>
           )}
         </nav>

@@ -26,12 +26,6 @@ export default function DashboardPage() {
   // Stanje za odobrenje od strane admina
   const [isApproved, setIsApproved] = useState<boolean | null>(null);
 
-  // Stanja za logo institucije
-  const [logoUrl, setLogoUrl] = useState('');
-  const [uploadingLogo, setUploadingLogo] = useState(false);
-  const [logoMessage, setLogoMessage] = useState('');
-  const [showLogoSettings, setShowLogoSettings] = useState(false);
-
   // Stanja za filtere
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedType, setSelectedType] = useState('ALL');
@@ -43,9 +37,6 @@ export default function DashboardPage() {
       if (statusRes.ok) {
         const statusData = await statusRes.json();
         setIsApproved(statusData.is_approved);
-        if (statusData.logo_url) {
-          setLogoUrl(statusData.logo_url);
-        }
       }
 
       // 2. Učitavanje certifikata
@@ -69,66 +60,6 @@ export default function DashboardPage() {
       fetchData();
     }
   }, [session]);
-
-  // Funkcija za upload fajla logotipa sa računara
-  async function handleLogoUpload(e: React.ChangeEvent<HTMLInputElement>) {
-    const file = e.target.files?.[0];
-    if (!file) return;
-
-    setUploadingLogo(true);
-    setLogoMessage('');
-
-    const formData = new FormData();
-    formData.append('file', file);
-
-    try {
-      const res = await fetch('/api/institution/upload-logo', {
-        method: 'POST',
-        body: formData,
-      });
-
-      const data = await res.json();
-
-      if (res.ok && data.success) {
-        setLogoUrl(data.institution.logo_url);
-        setLogoMessage('Logo je uspješno uploadovan i sačuvan!');
-      } else {
-        setLogoMessage(data.error || 'Došlo je do greške pri uploadu.');
-      }
-    } catch (err) {
-      console.error('Greška:', err);
-      setLogoMessage('Mrežna greška prilikom uploada.');
-    } finally {
-      setUploadingLogo(false);
-    }
-  }
-
-  // Funkcija za uklanjanje logotipa
-  async function handleRemoveLogo() {
-    if (!confirm('Da li ste sigurni da želite ukloniti logo institucije?')) return;
-
-    setUploadingLogo(true);
-    setLogoMessage('');
-
-    try {
-      const res = await fetch('/api/institution/upload-logo', {
-        method: 'DELETE',
-      });
-
-      const data = await res.json();
-
-      if (res.ok && data.success) {
-        setLogoUrl('');
-        setLogoMessage('Logotip je uspješno uklonjen.');
-      } else {
-        setLogoMessage(data.error || 'Došlo je do greške.');
-      }
-    } catch (err) {
-      setLogoMessage('Mrežna greška prilikom brisanja.');
-    } finally {
-      setUploadingLogo(false);
-    }
-  }
 
   // Funkcija za opoziv certifikata
   async function handleRevoke(certificateHash: string) {
@@ -210,12 +141,12 @@ export default function DashboardPage() {
 
         {/* Akcijski dugmići */}
         <div className="flex items-center gap-3">
-          <button
-            onClick={() => setShowLogoSettings(!showLogoSettings)}
-            className="px-4 py-3 rounded-xl font-semibold bg-slate-100 hover:bg-slate-200 text-slate-700 text-sm transition border border-slate-300 cursor-pointer flex items-center gap-2"
+          <Link
+            href="/profil"
+            className="px-4 py-3 rounded-xl font-semibold bg-slate-100 hover:bg-slate-200 text-slate-700 text-sm transition border border-slate-300 text-center"
           >
-            <span>{logoUrl ? 'Uredi Logo' : 'Dodaj Logo'}</span>
-          </button>
+            Profil i logo
+          </Link>
 
           {isApproved === false ? (
             <button
@@ -235,53 +166,6 @@ export default function DashboardPage() {
           )}
         </div>
       </div>
-
-      {/* Kolapsibilna sekcija za upload / uklanjanje logotipa */}
-      {showLogoSettings && (
-        <div className="mb-8 p-6 bg-white border border-slate-200 rounded-2xl shadow-sm transition-all">
-          <h3 className="text-base font-bold text-slate-900 mb-2">Vizuelni identitet (Logo institucije)</h3>
-          <p className="text-xs text-slate-500 mb-4">
-            Izaberite zvanični logo sa vašeg računara (PNG, JPG ili SVG). Logo će se automatski prikazivati na vrhu svih PDF certifikata koje izdate.
-          </p>
-
-          <div className="flex flex-col sm:flex-row gap-4 items-center">
-            <input
-              type="file"
-              accept="image/png, image/jpeg, image/svg+xml"
-              onChange={handleLogoUpload}
-              disabled={uploadingLogo}
-              className="w-full text-sm text-slate-500 file:mr-4 file:py-2.5 file:px-4 file:rounded-xl file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100 cursor-pointer"
-            />
-          </div>
-
-          {uploadingLogo && (
-            <p className="text-xs text-blue-600 mt-3 font-medium">Obrada u toku...</p>
-          )}
-
-          {logoUrl && !uploadingLogo && (
-            <div className="mt-4 flex items-center justify-between">
-              <div className="flex items-center gap-3">
-                <span className="text-xs font-medium text-slate-500">Trenutni logo:</span>
-                <div className="w-12 h-12 bg-slate-50 border border-slate-200 rounded-lg flex items-center justify-center overflow-hidden p-1">
-                  <img src={logoUrl} alt="Logo preview" className="max-h-full max-w-full object-contain" />
-                </div>
-              </div>
-              <button
-                onClick={handleRemoveLogo}
-                className="px-3 py-1.5 rounded-xl text-xs font-semibold bg-rose-50 text-rose-600 hover:bg-rose-600 hover:text-white transition border border-rose-200 cursor-pointer"
-              >
-                Ukloni logo
-              </button>
-            </div>
-          )}
-
-          {logoMessage && (
-            <p className={`text-xs mt-3 font-semibold ${logoMessage.includes('uspješno') ? 'text-emerald-600' : 'text-rose-600'}`}>
-              {logoMessage}
-            </p>
-          )}
-        </div>
-      )}
 
       {/* Statistika / Kartice */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-6 mb-8">

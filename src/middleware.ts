@@ -12,7 +12,7 @@ export async function middleware(request: NextRequest) {
   });
 
   // 2. Zaštita za /portal i /izdavanje (bilo koji ulogovani korisnik)
-  if ((pathname.startsWith("/portal") || pathname.startsWith("/izdavanje")) && !token) {
+  if ((pathname.startsWith("/portal") || pathname.startsWith("/izdavanje") || pathname.startsWith("/profil")) && !token) {
     return NextResponse.redirect(new URL("/login", request.url));
   }
 
@@ -32,5 +32,5 @@ export async function middleware(request: NextRequest) {
 }
 
 export const config = {
-  matcher: ["/portal/:path*", "/izdavanje/:path*", "/admin/:path*"],
+  matcher: ["/portal/:path*", "/izdavanje/:path*", "/profil/:path*", "/admin/:path*"],
 };

@@ -9,6 +9,9 @@ export default function LoginPage() {
   const router = useRouter();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [otp, setOtp] = useState('');
+  const [step, setStep] = useState<'credentials' | 'otp'>('credentials');
+  const [info, setInfo] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
@@ -16,15 +19,28 @@ export default function LoginPage() {
     e.preventDefault();
     setLoading(true);
     setError('');
+    setInfo('');
 
     try {
       const res = await signIn('credentials', {
         email,
         password,
+        otp: step === 'otp' ? otp.trim() : '',
         redirect: false,
       });
 
-      if (res?.error) {
+      if (res?.error === 'OTP_REQUIRED') {
+        // Lozinka je tačna, kod je poslan na email
+        setStep('otp');
+        setOtp('');
+        setInfo('Poslali smo 6-cifreni kod na vaš email. Unesite ga ispod.');
+      } else if (res?.error === 'OTP_INVALID') {
+        setError('Pogrešan kod. Pokušajte ponovo.');
+      } else if (res?.error === 'OTP_EXPIRED') {
+        setError('Kod je istekao ili je potrošen maksimalan broj pokušaja. Zatražite novi kod.');
+      } else if (res?.error === 'OTP_SEND_FAILED') {
+        setError('Slanje koda nije uspjelo. Pokušajte ponovo za nekoliko trenutaka.');
+      } else if (res?.error) {
         setError('Pogrešan email ili lozinka.');
       } else {
         router.push('/portal');
@@ -35,6 +51,32 @@ export default function LoginPage() {
     } finally {
       setLoading(false);
     }
+  };
+
+  // Traži novi kod (server šalje novi tek ako je prošlo 30 s od prethodnog)
+  const handleResend = async () => {
+    setLoading(true);
+    setError('');
+    setInfo('');
+    try {
+      const res = await signIn('credentials', { email, password, otp: '', redirect: false });
+      if (res?.error === 'OTP_REQUIRED') {
+        setInfo('Ako kod ne stigne, pričekajte 30 sekundi pa zatražite ponovo.');
+      } else {
+        setError('Slanje koda nije uspjelo.');
+      }
+    } catch {
+      setError('Došlo je do neočekivane greške.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const backToCredentials = () => {
+    setStep('credentials');
+    setOtp('');
+    setError('');
+    setInfo('');
   };
 
   return (
@@ -54,6 +96,8 @@ export default function LoginPage() {
 
         {/* Credentials Form */}
         <form onSubmit={handleCredentialsLogin} className="space-y-4">
+          {step === 'credentials' && (
+            <>
           <div>
             <label className="block text-xs font-semibold uppercase tracking-wider text-slate-500 mb-2">
               Email
@@ -82,6 +126,35 @@ export default function LoginPage() {
             />
           </div>
 
+            </>
+          )}
+
+          {step === 'otp' && (
+            <div>
+              <label className="block text-xs font-semibold uppercase tracking-wider text-slate-500 mb-2">
+                Kod iz emaila
+              </label>
+              <input
+                type="text"
+                inputMode="numeric"
+                autoComplete="one-time-code"
+                maxLength={6}
+                value={otp}
+                onChange={(e) => setOtp(e.target.value.replace(/\D/g, ''))}
+                placeholder="123456"
+                autoFocus
+                className="w-full p-3.5 rounded-xl bg-slate-50 border border-slate-200 text-slate-900 placeholder:text-slate-400 text-sm tracking-[0.4em] text-center focus:outline-none focus:border-blue-600 focus:bg-white transition"
+                required
+              />
+            </div>
+          )}
+
+          {info && (
+            <p className="text-blue-700 text-xs text-center bg-blue-50 p-3 rounded-xl border border-blue-200 font-medium">
+              {info}
+            </p>
+          )}
+
           {error && (
             <p className="text-rose-600 text-xs text-center bg-rose-50 p-3 rounded-xl border border-rose-200 font-medium">
               {error}
@@ -93,10 +166,23 @@ export default function LoginPage() {
             disabled={loading}
             className="w-full py-3.5 rounded-xl font-semibold bg-blue-600 hover:bg-blue-700 text-white text-sm transition shadow-md shadow-blue-600/20 cursor-pointer disabled:opacity-50 mt-2"
           >
-            {loading ? 'Prijavljivanje...' : 'Prijavi se'}
+            {loading ? 'Prijavljivanje...' : step === 'otp' ? 'Potvrdi kod' : 'Prijavi se'}
           </button>
+
+          {step === 'otp' && (
+            <div className="flex items-center justify-between text-xs">
+              <button type="button" onClick={backToCredentials} className="text-slate-500 hover:underline cursor-pointer">
+                Nazad
+              </button>
+              <button type="button" onClick={handleResend} disabled={loading} className="text-blue-600 hover:underline font-medium cursor-pointer disabled:opacity-50">
+                Pošalji kod ponovo
+              </button>
+            </div>
+          )}
         </form>
 
+        {step === 'credentials' && (
+          <>
         {/* Divider */}
         <div className="relative flex items-center justify-center my-6">
           <div className="border-t border-slate-200 w-full" />
@@ -131,6 +217,9 @@ export default function LoginPage() {
           </svg>
           Nastavi putem Google računa
         </button>
+
+          </>
+        )}
 
         {/* Footer Link */}
         <p className="text-slate-500 text-xs text-center mt-6">

@@ -25,6 +25,14 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Fajl nije pronađen.' }, { status: 400 });
     }
 
+    // Za PDF certifikate podržani su samo PNG i JPG
+    if (!['image/png', 'image/jpeg'].includes(file.type)) {
+      return NextResponse.json(
+        { error: 'Dozvoljeni formati su PNG i JPG.' },
+        { status: 400 }
+      );
+    }
+
     // Limit na 1MB za logo da ne opterećujemo bazu
     if (file.size > 1024 * 1024) {
       return NextResponse.json(
