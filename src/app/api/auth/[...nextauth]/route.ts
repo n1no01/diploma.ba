@@ -12,6 +12,7 @@ import {
   safeEqual,
   sendOtpEmail,
 } from "@/app/lib/otp";
+import { getClientIp, hitRateLimit, isRateLimited, resetRateLimit } from "@/app/lib/rateLimit";
 
 // Proširenje NextAuth tipova da TypeScript prepoznaje role i isApproved
 declare module "next-auth" {
@@ -61,18 +62,31 @@ export const authOptions: NextAuthOptions = {
         password: { label: "Lozinka", type: "password" },
         otp: { label: "Kod", type: "text" }
       },
-      async authorize(credentials) {
+      async authorize(credentials, req) {
         if (!credentials?.email || !credentials?.password) return null;
+
+        const ipKey = `login-ip:${getClientIp(req?.headers)}`;
+        const emailKey = `login-email:${credentials.email.trim().toLowerCase()}`;
+        const LOGIN_WINDOW = 15 * 60; // 15 minuta
 
         let client;
         try {
+          // Previše neuspjelih pokušaja -> blokada (5 po emailu, 30 po IP adresi u 15 minuta)
+          if ((await isRateLimited(emailKey, 5, LOGIN_WINDOW)) || (await isRateLimited(ipKey, 30, LOGIN_WINDOW))) {
+            throw new Error('RATE_LIMITED');
+          }
+
           client = await pool.connect();
           const result = await client.query(
             'SELECT * FROM institutions WHERE email = $1',
             [credentials.email]
           );
 
-          if (result.rows.length === 0) return null;
+          if (result.rows.length === 0) {
+            await hitRateLimit(emailKey, LOGIN_WINDOW);
+            await hitRateLimit(ipKey, LOGIN_WINDOW);
+            return null;
+          }
 
           const institution = result.rows[0];
           const isValidPassword = await bcrypt.compare(
@@ -80,7 +94,11 @@ export const authOptions: NextAuthOptions = {
             institution.password_hash
           );
 
-          if (!isValidPassword) return null;
+          if (!isValidPassword) {
+            await hitRateLimit(emailKey, LOGIN_WINDOW);
+            await hitRateLimit(ipKey, LOGIN_WINDOW);
+            return null;
+          }
 
           // ---- 2FA (kod na email) ----
           if (institution.two_factor_enabled) {
@@ -123,6 +141,9 @@ export const authOptions: NextAuthOptions = {
             if (attempt.rowCount === 0) throw new Error('OTP_EXPIRED');
 
             if (!safeEqual(attempt.rows[0].otp_hash, hashOtp(institution.email, otp))) {
+              // Pogrešan kod se računa kao neuspjeli pokušaj prijave
+              await hitRateLimit(emailKey, LOGIN_WINDOW);
+              await hitRateLimit(ipKey, LOGIN_WINDOW);
               throw new Error('OTP_INVALID');
             }
 
@@ -133,6 +154,9 @@ export const authOptions: NextAuthOptions = {
             );
           }
 
+          // Uspješna prijava -> briši brojač neuspjelih pokušaja za ovaj email
+          await resetRateLimit(emailKey);
+
           return {
             id: institution.id.toString(),
             name: institution.name,
@@ -142,7 +166,7 @@ export const authOptions: NextAuthOptions = {
           };
         } catch (error) {
           // OTP_* greške moraju stići do login stranice
-          if (error instanceof Error && error.message.startsWith('OTP_')) throw error;
+          if (error instanceof Error && (error.message.startsWith('OTP_') || error.message === 'RATE_LIMITED')) throw error;
           console.error("Greška pri autentifikaciji:", error);
           return null;
         } finally {

@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { Pool } from 'pg';
 import { Resend } from 'resend';
+import { consumeRateLimit, getClientIp } from '@/app/lib/rateLimit';
 
 const pool = new Pool({
   connectionString: process.env.DATABASE_URL,
@@ -14,6 +15,18 @@ export async function POST(req: Request) {
 
     if (!email || !email.trim()) {
       return NextResponse.json({ error: 'Email adresa je obavezna.' }, { status: 400 });
+    }
+
+    // Ograničenje: po IP adresi (10/h) i po emailu (2/h). Broji se bez obzira postoji li email u bazi.
+    const ip = getClientIp(req.headers);
+    const emailKey = email.trim().toLowerCase();
+    const allowedIp = await consumeRateLimit(`recovery-ip:${ip}`, 10, 3600);
+    const allowedEmail = await consumeRateLimit(`recovery-email:${emailKey}`, 2, 3600);
+    if (!allowedIp || !allowedEmail) {
+      return NextResponse.json(
+        { error: 'Previše zahtjeva. Pokušajte ponovo za sat vremena.' },
+        { status: 429 }
+      );
     }
 
     const client = await pool.connect();

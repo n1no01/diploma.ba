@@ -38,6 +38,8 @@ export default function LoginPage() {
         setError('Pogrešan kod. Pokušajte ponovo.');
       } else if (res?.error === 'OTP_EXPIRED') {
         setError('Kod je istekao ili je potrošen maksimalan broj pokušaja. Zatražite novi kod.');
+      } else if (res?.error === 'RATE_LIMITED') {
+        setError('Previše neuspjelih pokušaja. Pokušajte ponovo za 15 minuta.');
       } else if (res?.error === 'OTP_SEND_FAILED') {
         setError('Slanje koda nije uspjelo. Pokušajte ponovo za nekoliko trenutaka.');
       } else if (res?.error) {
@@ -124,6 +126,11 @@ export default function LoginPage() {
               className="w-full p-3.5 rounded-xl bg-slate-50 border border-slate-200 text-slate-900 placeholder:text-slate-400 text-sm focus:outline-none focus:border-blue-600 focus:bg-white transition"
               required
             />
+          </div>
+          <div className="text-right -mt-2">
+            <Link href="/zaboravljena-lozinka" className="text-xs text-blue-600 hover:underline font-medium">
+              Zaboravljena lozinka?
+            </Link>
           </div>
 
             </>

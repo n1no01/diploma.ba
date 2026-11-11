@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { Pool } from 'pg';
 import { authOptions } from '@/app/api/auth/[...nextauth]/route';
+import { normalizeWebsite } from '@/app/lib/website';
 
 const pool = new Pool({
   connectionString: process.env.DATABASE_URL,
@@ -58,25 +59,11 @@ export async function PATCH(request: Request) {
     }
 
     const body = await request.json();
-    let website: string | null = typeof body.website === 'string' ? body.website.trim() : '';
-
-    if (website) {
-      if (website.length > 200) {
-        return NextResponse.json({ error: 'Adresa web stranice je predugačka.' }, { status: 400 });
-      }
-      if (!/^https?:\/\//i.test(website)) website = `https://${website}`;
-      try {
-        const url = new URL(website);
-        if (url.protocol !== 'http:' && url.protocol !== 'https:' || !url.hostname.includes('.')) {
-          throw new Error('invalid');
-        }
-        website = url.toString().replace(/\/$/, '');
-      } catch {
-        return NextResponse.json({ error: 'Unesite ispravnu adresu web stranice (npr. www.ustanova.ba).' }, { status: 400 });
-      }
-    } else {
-      website = null;
+    const parsed = normalizeWebsite(body.website);
+    if ("error" in parsed) {
+      return NextResponse.json({ error: parsed.error }, { status: 400 });
     }
+    const website = parsed.value;
 
     const result = await pool.query(
       'UPDATE institutions SET website = $1 WHERE LOWER(email) = LOWER($2) RETURNING website',

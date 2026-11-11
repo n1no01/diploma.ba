@@ -209,7 +209,7 @@ export default function AdminDashboard() {
                     <td className="p-4 font-semibold text-slate-900">
                       {inst.name}
                       {inst.website && (
-                        <a href={inst.website} target="_blank" rel="noreferrer" className="block text-xs font-normal text-blue-500 hover:underline">
+                        <a href={/^https?:\/\//i.test(inst.website) ? inst.website : undefined} target="_blank" rel="noreferrer" className="block text-xs font-normal text-blue-500 hover:underline">
                           {inst.website}
                         </a>
                       )}

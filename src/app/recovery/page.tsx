@@ -26,7 +26,7 @@ export default function RecoveryPage() {
         setStatusMsg(data.message);
         setEmail('');
       } else {
-        setStatusMsg('Došlo je do greške. Pokušajte ponovo.');
+        setStatusMsg(data.error || 'Došlo je do greške. Pokušajte ponovo.');
       }
     } catch (err) {
       setStatusMsg('Mrežna greška pri slanju zahtjeva.');

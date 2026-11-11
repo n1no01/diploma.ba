@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { Pool } from 'pg';
 import bcrypt from 'bcryptjs';
 import crypto from 'crypto';
+import { normalizeWebsite } from '@/app/lib/website';
 import { Resend } from 'resend';
 
 const pool = new Pool({
