@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { Pool } from 'pg';
 import bcrypt from 'bcryptjs';
+import crypto from 'crypto';
 import { Resend } from 'resend';
 
 const pool = new Pool({
@@ -17,7 +18,7 @@ export async function POST(request: Request) {
     const institutionName = body.institutionName || body.name;
     const email = body.email;
     const password = body.password;
-    const website = body.website || null; // Opcionalna web stranica
+    const website = body.website || null;
 
     if (!institutionName || !email || !password) {
       return NextResponse.json(
@@ -28,7 +29,6 @@ export async function POST(request: Request) {
 
     const client = await pool.connect();
     
-    // Provjeravamo da li ustanova s tim emailom već postoji
     const existingUser = await client.query(
       'SELECT id FROM institutions WHERE email = $1',
       [email]
@@ -43,7 +43,7 @@ export async function POST(request: Request) {
     }
 
     // Generisanje 6-cifrenog verifikacionog koda
-    const verificationCode = Math.floor(100000 + Math.random() * 900000).toString();
+    const verificationCode = crypto.randomInt(100000, 1000000).toString();
 
     // Hashiramo lozinku
     const hashedPassword = await bcrypt.hash(password, 10);

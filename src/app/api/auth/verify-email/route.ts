@@ -21,7 +21,7 @@ export async function POST(request: Request) {
 
     // Pronalazimo korisnika po emailu i provjeravamo kod
     const result = await client.query(
-      'SELECT id, verification_token, email_verified FROM institutions WHERE email = $1',
+      'SELECT id, verification_token, email_verified, verification_locked_until FROM institutions WHERE email = $1',
       [email]
     );
 
@@ -44,8 +44,25 @@ export async function POST(request: Request) {
       );
     }
 
+    // Zaključano nakon previše pogrešnih pokušaja
+    if (institution.verification_locked_until && new Date(institution.verification_locked_until) > new Date()) {
+      client.release();
+      return NextResponse.json(
+        { error: 'Previše pogrešnih pokušaja. Pokušajte ponovo za 15 minuta.' },
+        { status: 429 }
+      );
+    }
+
     // Provjera da li se kod poklapa
-    if (institution.verification_token !== code.trim()) {
+    if (institution.verification_token !== String(code).trim()) {
+      // Brojimo pogrešne pokušaje; nakon 5 zaključavamo na 15 minuta
+      await client.query(
+        `UPDATE institutions
+         SET verification_locked_until = CASE WHEN verification_attempts + 1 >= 5 THEN NOW() + INTERVAL '15 minutes' ELSE verification_locked_until END,
+             verification_attempts = CASE WHEN verification_attempts + 1 >= 5 THEN 0 ELSE verification_attempts + 1 END
+         WHERE id = $1`,
+        [institution.id]
+      );
       client.release();
       return NextResponse.json(
         { error: 'Neispravan verifikacioni kod. Pokušajte ponovo.' },
@@ -55,7 +72,7 @@ export async function POST(request: Request) {
 
     // Ažuriramo bazu: email_verified postaje TRUE, a brišemo token da se ne može ponovo iskoristiti
     await client.query(
-      'UPDATE institutions SET email_verified = TRUE, verification_token = NULL WHERE email = $1',
+      'UPDATE institutions SET email_verified = TRUE, verification_token = NULL, verification_attempts = 0, verification_locked_until = NULL WHERE email = $1',
       [email]
     );
 
