@@ -4,6 +4,7 @@ import { ethers } from 'ethers';
 import { authenticateApiKey } from '@/app/lib/apiKey';
 import { computeCertHash } from '@/app/lib/certHash';
 import { sendCertificateEmail } from '@/app/lib/email';
+import { apiError, CERT_COLUMNS, formatCertificate, guardApiRequest } from '@/app/lib/apiGuard';
 import { consumeRateLimit, getClientIp, hitRateLimit, isRateLimited } from '@/app/lib/rateLimit';
 
 const pool = new Pool({
@@ -189,5 +190,78 @@ export async function POST(req: Request) {
       }
       client.release();
     }
+  }
+}
+
+
+/**
+ * GET /api/v1/certificates?limit=50&cursor=123&status=active&email=...&identifier=...
+ * Lista certifikata vaše ustanove, najnoviji prvi. Za sljedeću stranicu proslijedite nextCursor.
+ */
+export async function GET(req: Request) {
+  try {
+    const guard = await guardApiRequest(req, 'api-read', 120);
+    if ('response' in guard) return guard.response;
+
+    const url = new URL(req.url);
+    const limitRaw = parseInt(url.searchParams.get('limit') || '50', 10);
+    const limit = Number.isFinite(limitRaw) ? Math.min(Math.max(limitRaw, 1), 100) : 50;
+
+    const conditions = ['institution_id = $1'];
+    const values: unknown[] = [guard.institution.id];
+
+    const cursor = url.searchParams.get('cursor');
+    if (cursor) {
+      if (!/^\d{1,15}$/.test(cursor)) return apiError('cursor nije ispravan.', 400);
+      values.push(parseInt(cursor, 10));
+      conditions.push(`id < $${values.length}`);
+    }
+
+    const status = url.searchParams.get('status');
+    if (status) {
+      if (status === 'revoked') {
+        conditions.push("status = 'revoked'");
+      } else if (status === 'active') {
+        conditions.push("status <> 'revoked' AND (expires_at IS NULL OR expires_at >= NOW())");
+      } else if (status === 'expired') {
+        conditions.push("status <> 'revoked' AND expires_at IS NOT NULL AND expires_at < NOW()");
+      } else {
+        return apiError('status mora biti active, revoked ili expired.', 400);
+      }
+    }
+
+    const email = url.searchParams.get('email');
+    if (email) {
+      values.push(email.trim().toLowerCase().slice(0, 200));
+      conditions.push(`LOWER(student_email) = $${values.length}`);
+    }
+
+    const identifier = url.searchParams.get('identifier');
+    if (identifier) {
+      values.push(identifier.trim().slice(0, 100));
+      conditions.push(`identifier = $${values.length}`);
+    }
+
+    values.push(limit + 1);
+    const result = await pool.query(
+      `SELECT ${CERT_COLUMNS} FROM certificates
+       WHERE ${conditions.join(' AND ')}
+       ORDER BY id DESC
+       LIMIT $${values.length}`,
+      values
+    );
+
+    const hasMore = result.rows.length > limit;
+    const rows = hasMore ? result.rows.slice(0, limit) : result.rows;
+    const baseUrl = process.env.APP_URL || 'https://diploma.ba';
+
+    return NextResponse.json({
+      success: true,
+      certificates: rows.map((r) => formatCertificate(r, baseUrl)),
+      nextCursor: hasMore ? String(rows[rows.length - 1].id) : null,
+    });
+  } catch (error) {
+    console.error('Greška API liste certifikata:', error);
+    return apiError('Interna greška na serveru.', 500);
   }
 }
