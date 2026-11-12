@@ -83,16 +83,7 @@ export async function sendCertificateEmail({
   const verifyUrl = `${process.env.APP_URL}/verifikuj?hash=${certificateHash}`;
 
   try {
-    // 1. Generišemo PDF bafer u letu za prilog (attachment)
-    const pdfBuffer = await generatePdfBuffer({
-      studentName,
-      certificateType: certificateTitle,
-      institutionName,
-      txHash: certificateHash,
-      createdAt: new Date(),
-    });
-
-    // 2. Šaljemo mail preko Resend-a sa zakačenim PDF-om
+    // Šaljemo mail bez PDF priloga; PDF se preuzima na stranici za verifikaciju
     const data = await resend.emails.send({
       from: 'diploma.ba <noreply@diploma.ba>',
       to: [studentEmail],
@@ -107,7 +98,7 @@ export async function sendCertificateEmail({
             <p style="margin: 0; font-size: 18px; font-weight: bold; color: #0f172a;">${certificateTitle}</p>
           </div>
           <p style="font-size: 14px; line-height: 1.6; color: #475569;">
-            U prilogu ovog emaila se nalazi vaš zvanični <strong>PDF certifikat</strong>. Vaš dokument je također nepromjenjivo zapisan na Base blockchain mreži.
+            Vaš dokument je nepromjenjivo zapisan na Base blockchain mreži. Klikom na dugme ispod možete ga provjeriti i, po želji, preuzeti kao <strong>PDF certifikat</strong>.
           </p>
           <div style="text-align: center; margin: 35px 0;">
             <a href="${verifyUrl}" style="background-color: #2563eb; color: #ffffff; padding: 14px 28px; text-decoration: none; font-weight: bold; border-radius: 12px; display: inline-block; box-shadow: 0 4px 6px rgba(37, 99, 235, 0.2);">
@@ -116,17 +107,11 @@ export async function sendCertificateEmail({
           </div>
         </div>
       `,
-      attachments: [
-        {
-          filename: `Certifikat-${studentName.replace(/\s+/g, '_')}.pdf`,
-          content: pdfBuffer,
-        },
-      ],
     });
 
     return { success: true, data };
   } catch (error) {
-    console.error('Greška pri slanju emaila ili generisanju PDF-a:', error);
+    console.error('Greška pri slanju emaila:', error);
     return { success: false, error };
   }
 }

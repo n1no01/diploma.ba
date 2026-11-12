@@ -337,14 +337,13 @@ export default function IssueCertificatePage() {
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-xs font-semibold uppercase tracking-wider text-slate-500 mb-2">Identifikator / Broj indeksa</label>
+                  <label className="block text-xs font-semibold uppercase tracking-wider text-slate-500 mb-2">Identifikator <span className="text-slate-400 font-normal lowercase">(opcionalno)</span></label>
                   <input
                     type="text"
                     value={identifier}
                     onChange={(e) => setIdentifier(e.target.value)}
                     placeholder="npr. IND-2023-45"
                     className="w-full p-4 rounded-xl bg-slate-50 border border-slate-300 text-slate-900 placeholder:text-slate-400 text-sm focus:outline-none focus:border-blue-600 focus:bg-white transition"
-                    required
                   />
                 </div>
                 <div>

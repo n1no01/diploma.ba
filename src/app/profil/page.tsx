@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState, FormEvent, ChangeEvent } from 'react';
+import Link from 'next/link';
 
 interface Account {
   name: string;
@@ -13,6 +14,9 @@ interface Account {
   isGoogleAccount: boolean;
   certificatesTotal: number;
   certificatesRevoked: number;
+  apiKeyPrefix: string;
+  apiKeyCreatedAt: string | null;
+  apiKeyLastUsedAt: string | null;
 }
 
 type Msg = { type: 'ok' | 'err'; text: string } | null;
@@ -64,6 +68,14 @@ export default function ProfilPage() {
   const [newPw2, setNewPw2] = useState('');
   const [pwBusy, setPwBusy] = useState(false);
   const [pwMsg, setPwMsg] = useState<Msg>(null);
+
+  // API ključ
+  const [apiMode, setApiMode] = useState<'generate' | 'revoke' | null>(null);
+  const [apiPw, setApiPw] = useState('');
+  const [apiBusy, setApiBusy] = useState(false);
+  const [apiMsg, setApiMsg] = useState<Msg>(null);
+  const [newKey, setNewKey] = useState('');
+  const [copied, setCopied] = useState(false);
 
   // 2FA
   const [confirming, setConfirming] = useState(false);
@@ -185,6 +197,47 @@ export default function ProfilPage() {
       setPwMsg({ type: 'err', text: err instanceof Error ? err.message : 'Greška pri promjeni lozinke.' });
     } finally {
       setPwBusy(false);
+    }
+  };
+
+  // ---------- API ključ ----------
+  const submitApiKey = async (e: FormEvent) => {
+    e.preventDefault();
+    if (!acc || !apiMode) return;
+    setApiBusy(true);
+    setApiMsg(null);
+    try {
+      const res = await fetch('/api/institution/api-key', {
+        method: apiMode === 'generate' ? 'POST' : 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ password: apiPw }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Greška pri spremanju.');
+      if (apiMode === 'generate') {
+        setNewKey(data.apiKey);
+        setCopied(false);
+        setAcc({ ...acc, apiKeyPrefix: data.prefix, apiKeyCreatedAt: new Date().toISOString(), apiKeyLastUsedAt: null });
+      } else {
+        setNewKey('');
+        setAcc({ ...acc, apiKeyPrefix: '', apiKeyCreatedAt: null, apiKeyLastUsedAt: null });
+        setApiMsg({ type: 'ok', text: 'API ključ je opozvan.' });
+      }
+      setApiMode(null);
+      setApiPw('');
+    } catch (err) {
+      setApiMsg({ type: 'err', text: err instanceof Error ? err.message : 'Greška pri spremanju.' });
+    } finally {
+      setApiBusy(false);
+    }
+  };
+
+  const copyKey = async () => {
+    try {
+      await navigator.clipboard.writeText(newKey);
+      setCopied(true);
+    } catch {
+      setApiMsg({ type: 'err', text: 'Kopiranje nije uspjelo. Označite ključ i kopirajte ga ručno.' });
     }
   };
 
@@ -363,6 +416,99 @@ export default function ProfilPage() {
             </form>
           )}
           <Message msg={pwMsg} />
+        </Card>
+
+        {/* API pristup */}
+        <Card
+          title="API pristup"
+          subtitle="Omogućava vašoj platformi da automatski izdaje certifikate (npr. čim neko položi kurs)."
+        >
+          <p className="text-xs text-slate-500 mb-4">
+            Kako povezati svoju platformu:{' '}
+            <Link href="/docs" target="_blank" className="text-blue-600 hover:underline font-semibold">
+              pročitajte API dokumentaciju →
+            </Link>
+          </p>
+          {!acc.isApproved ? (
+            <p className="text-xs bg-amber-50 border border-amber-200 text-amber-800 p-3 rounded-xl">
+              API ključ možete napraviti nakon što administrator odobri vaš nalog.
+            </p>
+          ) : (
+            <>
+              {newKey && (
+                <div className="mb-4 bg-emerald-50 border border-emerald-200 rounded-2xl p-4">
+                  <p className="text-xs font-semibold text-emerald-800 mb-2">
+                    Vaš novi API ključ. Prikazuje se samo jednom, pa ga odmah sačuvajte.
+                  </p>
+                  <div className="flex gap-2 items-center">
+                    <code className="flex-1 min-w-0 break-all bg-white border border-emerald-200 rounded-xl px-3 py-2 text-xs text-slate-900">{newKey}</code>
+                    <button type="button" onClick={copyKey} className={secondaryBtn}>{copied ? 'Kopirano' : 'Kopiraj'}</button>
+                  </div>
+                </div>
+              )}
+
+              {acc.apiKeyPrefix ? (
+                <div className="text-xs text-slate-600 space-y-1">
+                  <p>Aktivan ključ: <code className="text-slate-900">{acc.apiKeyPrefix}…</code></p>
+                  <p>Kreiran: {acc.apiKeyCreatedAt ? new Date(acc.apiKeyCreatedAt).toLocaleString('bs-BA') : '—'}</p>
+                  <p>Posljednja upotreba: {acc.apiKeyLastUsedAt ? new Date(acc.apiKeyLastUsedAt).toLocaleString('bs-BA') : 'još nije korišten'}</p>
+                </div>
+              ) : (
+                <p className="text-xs text-slate-500">Nemate aktivan API ključ.</p>
+              )}
+
+              {!apiMode && (
+                <div className="flex gap-3 mt-4">
+                  <button type="button" onClick={() => { setApiMsg(null); setApiPw(''); setApiMode('generate'); }} className={primaryBtn}>
+                    {acc.apiKeyPrefix ? 'Zamijeni ključ' : 'Generiši API ključ'}
+                  </button>
+                  {acc.apiKeyPrefix && (
+                    <button type="button" onClick={() => { setApiMsg(null); setApiPw(''); setApiMode('revoke'); }} className="px-5 py-2.5 rounded-xl font-semibold bg-rose-50 text-rose-600 hover:bg-rose-600 hover:text-white transition border border-rose-200 text-sm cursor-pointer">
+                      Opozovi ključ
+                    </button>
+                  )}
+                </div>
+              )}
+
+              {apiMode && (
+                <form onSubmit={submitApiKey} className="mt-4 space-y-3 border-t border-slate-100 pt-4">
+                  {apiMode === 'generate' && acc.apiKeyPrefix && (
+                    <p className="text-xs text-amber-800 bg-amber-50 border border-amber-200 p-3 rounded-xl">
+                      Stari ključ prestaje raditi čim napravite novi.
+                    </p>
+                  )}
+                  {!acc.isGoogleAccount && (
+                    <>
+                      <label className={labelCls}>Unesite lozinku za potvrdu</label>
+                      <input type="password" value={apiPw} onChange={(e) => setApiPw(e.target.value)} className={inputCls} autoFocus required />
+                    </>
+                  )}
+                  <div className="flex gap-3">
+                    <button type="submit" disabled={apiBusy} className={primaryBtn}>
+                      {apiBusy ? 'Obrada...' : apiMode === 'generate' ? 'Generiši' : 'Opozovi'}
+                    </button>
+                    <button type="button" onClick={() => { setApiMode(null); setApiPw(''); }} className={secondaryBtn}>Odustani</button>
+                  </div>
+                </form>
+              )}
+
+              <details className="mt-5 text-xs text-slate-600">
+                <summary className="cursor-pointer font-semibold text-slate-700">Kako se koristi</summary>
+                <pre className="mt-3 bg-slate-900 text-slate-100 p-4 rounded-xl overflow-x-auto text-[11px] leading-relaxed">{`curl -X POST https://diploma.ba/api/v1/certificates \\
+  -H "Authorization: Bearer VAŠ_API_KLJUČ" \\
+  -H "Content-Type: application/json" \\
+  -d '{
+    "studentName": "Ime Prezime",
+    "studentEmail": "student@primjer.ba",
+    "certificateType": "Naziv kursa",
+    "identifier": "ID-polaznika-ili-kursa",
+    "expiresAt": "2030-12-31"
+  }'`}</pre>
+                <p className="mt-2">Isti zahtjev poslan dvaput ne pravi duplikat, nego vraća postojeći certifikat. Dozvoljeno je 60 zahtjeva u minuti. Ključ čuvajte samo na serveru, nikad u kodu koji vide korisnici.</p>
+              </details>
+            </>
+          )}
+          <Message msg={apiMsg} />
         </Card>
 
         {/* 2FA */}

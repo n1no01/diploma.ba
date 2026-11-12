@@ -24,8 +24,8 @@ export default function Footer() {
             </svg>
             <span>LinkedIn</span>
           </a>
-           <Link href="/verifikuj" className="hover:text-slate-900 transition">
-            Javni registar
+          <Link href="/docs" className="hover:text-slate-900 transition">
+            Dokumentacija
           </Link>
           <Link href="/politika-privatnosti" className="hover:text-slate-900 transition">
             Politika privatnosti
