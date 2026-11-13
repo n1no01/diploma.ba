@@ -11,6 +11,11 @@ const BASE = 'https://diploma.ba';
 
 /* ---------- primjeri koda ---------- */
 
+const utfExample = `curl -X POST ${BASE}/api/v1/certificates \\
+  -H "Authorization: Bearer dpl_VAS_KLJUC" \\
+  -H "Content-Type: application/json" \\
+  --data-binary @podaci.json`;
+
 const quickstart = `curl -X POST ${BASE}/api/v1/certificates \\
   -H "Authorization: Bearer dpl_VAS_KLJUC" \\
   -H "Content-Type: application/json" \\
@@ -74,6 +79,76 @@ const revokeResponse = `{
 }`;
 
 const errorExample = `{ "error": "Nevažeći ili nedostajući API ključ." }`;
+
+const bulkRequest = `curl -X POST ${BASE}/api/v1/certificates/bulk \\
+  -H "Authorization: Bearer dpl_VAS_KLJUC" \\
+  -H "Content-Type: application/json" \\
+  -d '{
+    "certificateType": "Napredni kurs programiranja",
+    "recipients": [
+      { "studentName": "Ana Anić", "studentEmail": "ana@example.com", "identifier": "kurs-12-korisnik-1" },
+      { "studentName": "Ben Benić", "studentEmail": "ben@example.com", "identifier": "kurs-12-korisnik-2" }
+    ]
+  }'`;
+
+const bulkResponse = `{
+  "success": true,
+  "issuedCount": 1,
+  "alreadyIssuedCount": 1,
+  "txHash": "0x9b1c…",          // null ako ništa nije izdato
+  "results": [
+    {
+      "index": 0,                // mjesto primaoca u vašoj listi
+      "alreadyIssued": true,
+      "certificateId": 120,
+      "certificateHash": "3f2a…",
+      "txHash": "0x7e44…",
+      "status": "active",
+      "verifyUrl": "${BASE}/verifikuj?hash=3f2a…"
+    },
+    {
+      "index": 1,
+      "alreadyIssued": false,
+      "certificateId": 123,
+      "certificateHash": "8c1d…",
+      "txHash": "0x9b1c…",
+      "status": "active",
+      "verifyUrl": "${BASE}/verifikuj?hash=8c1d…"
+    }
+  ]
+}`;
+
+const nodeBulk = `// Izdaje certifikate za cijelu listu polaznika, u grupama od po 100
+async function izdajSve(polaznici, kurs) {
+  const rezultati = [];
+
+  for (let i = 0; i < polaznici.length; i += 100) {
+    const grupa = polaznici.slice(i, i + 100);
+
+    const res = await fetch('${BASE}/api/v1/certificates/bulk', {
+      method: 'POST',
+      headers: {
+        Authorization: \`Bearer \${process.env.DIPLOMA_API_KEY}\`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        certificateType: kurs.naziv,
+        recipients: grupa.map((p) => ({
+          studentName: p.punoIme,
+          studentEmail: p.email,
+          identifier: \`kurs-\${kurs.id}-korisnik-\${p.id}\`,
+        })),
+      }),
+    });
+
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error);   // sigurno je ponoviti istu grupu
+
+    // results ima isti redoslijed kao grupa
+    data.results.forEach((r, k) => rezultati.push({ korisnik: grupa[k], ...r }));
+  }
+  return rezultati;
+}`;
 
 const nodeIssue = `// Pozovite sa SERVERA vaše platforme, nikada iz browsera
 async function izdajCertifikat(korisnik, kurs) {
@@ -152,6 +227,7 @@ print(data["verifyUrl"])`;
 
 const endpoints: [string, string, string, string][] = [
   ['POST', '/api/v1/certificates', 'Izdaj certifikat', '#izdavanje'],
+  ['POST', '/api/v1/certificates/bulk', 'Izdaj više certifikata odjednom (do 100)', '#bulk'],
   ['GET', '/api/v1/certificates', 'Lista izdatih certifikata', '#lista'],
   ['GET', '/api/v1/certificates/{hash}', 'Status jednog certifikata', '#status'],
   ['POST', '/api/v1/certificates/{hash}/revoke', 'Poništi certifikat', '#ponistavanje'],
@@ -160,7 +236,7 @@ const endpoints: [string, string, string, string][] = [
 const issueFields: [string, string, string, string][] = [
   ['studentName', 'string', 'da', 'Ime i prezime primaoca, najviše 200 znakova.'],
   ['studentEmail', 'string', 'da', 'Email primaoca. Na njega stiže obavijest s linkom za provjeru.'],
-  ['certificateType', 'string', 'ne (preporučeno)', 'Naziv certifikata ili kursa (najviše 200 znakova). Zadano: „Diploma o završenom studiju“.'],
+  ['certificateType', 'string', 'ne', 'Naziv certifikata ili kursa (najviše 200 znakova). Zadano: „Diploma o završenom studiju“.'],
   ['identifier', 'string', 'ne (preporučeno)', 'Vaš interni ID, npr. broj indeksa ili ID kursa i korisnika (najviše 100 znakova). Vidi napomenu ispod.'],
   ['metadata', 'objekat', 'ne', 'Dodatni podaci u JSON obliku, npr. ocjena ili broj sati (najviše 4000 znakova).'],
   ['expiresAt', 'string', 'ne', 'Datum isteka, npr. 2030-12-31. Bez ovog polja certifikat ne ističe.'],
@@ -177,7 +253,7 @@ const certFields: [string, string][] = [
 ];
 
 const errors: [string, string, string][] = [
-  ['400', 'Neispravni podaci', 'Provjerite polja u zahtjevu. Poruka u polju error kaže šta je pogrešno.'],
+  ['400', 'Neispravni podaci', 'Provjerite polja u zahtjevu. Poruka u polju error kaže šta je pogrešno. Tekst mora biti u UTF-8 kodiranju, inače se č, ć, š, ž i đ ne mogu pročitati.'],
   ['401', 'Nevažeći ili nedostajući API ključ', 'Zaglavlje mora biti Authorization: Bearer dpl_... (sa razmakom iza „Bearer“). Ako ste ključ zamijenili novim, stari više ne važi.'],
   ['403', 'Nalog nije odobren', 'Administrator još nije odobrio vašu ustanovu.'],
   ['404', 'Certifikat nije pronađen', 'Hash ne postoji ili pripada drugoj ustanovi.'],
@@ -194,6 +270,10 @@ const faq: [string, string][] = [
   [
     'Zašto je identifier preporučen, a nije obavezan?',
     'Certifikat se prepoznaje po hashu izračunatom iz ustanove, imena, emaila, naziva certifikata, identifikatora i metadata. Ako se sve to poklopi, riječ je o istom certifikatu. Ako ista osoba treba dva certifikata s istim nazivom (npr. isti kurs u dva ciklusa), pošaljite različit identifier ili metadata. Dvije osobe s istim imenom, a različitim emailom, uvijek dobijaju različite certifikate.',
+  ],
+  [
+    'Imam 500 polaznika. Kako da izdam sve certifikate?',
+    'Koristite masovno izdavanje: podijelite listu u grupe od po 100 i pošaljite svaku grupu posebnim zahtjevom (primjer u poglavlju „Primjeri koda“). Ako neka grupa padne, ponovite je: već izdati certifikati se preskaču.',
   ],
   [
     'Kako da izdam certifikat bez da primalac dobije email?',
@@ -279,6 +359,7 @@ const toc: [string, string][] = [
   ['#brzi-pocetak', 'Brzi početak'],
   ['#autentikacija', 'Autentikacija'],
   ['#izdavanje', 'Izdavanje'],
+  ['#bulk', 'Masovno izdavanje'],
   ['#lista', 'Lista'],
   ['#status', 'Status'],
   ['#ponistavanje', 'Poništavanje'],
@@ -347,6 +428,16 @@ export default function DocsPage() {
           <p className="text-xs text-slate-500 leading-relaxed">
             Napomena za Windows: u PowerShellu pišite <C>curl.exe</C> umjesto <C>curl</C>, i sve zahtjeve stavite u jednu liniju (bez znaka <C>\</C> za novi red). Za lokalno testiranje koristite <C>http://localhost:3000</C>, ne <C>https</C>.
           </p>
+          <div className="bg-amber-50 border border-amber-200 rounded-2xl p-5 space-y-3">
+            <p className="text-sm font-semibold text-amber-900">Imena sa č, ć, š, ž i đ kada testirate iz terminala</p>
+            <p className="text-sm text-amber-900/90 leading-relaxed">
+              Windows terminal (CMD, PowerShell, Git Bash) često šalje tekst u drugom kodiranju, pa se znakovi č, ć, š, ž i đ ne mogu pročitati. Zato u primjerima s <C>curl</C> na ovoj stranici ne upisujte imena direktno u naredbu. Spremite JSON u datoteku kodiranu kao <strong>UTF-8</strong> (npr. <C>podaci.json</C>, u Notepadu „Save as“ i izaberite UTF-8) i pošaljite je ovako:
+            </p>
+            <Code>{utfExample}</Code>
+            <p className="text-sm text-amber-900/90 leading-relaxed">
+              Ako se tekst ipak pošalje pogrešno kodiran, API vraća grešku <C>400</C> i ništa ne izdaje, tako da se pokvareno ime ne može upisati u certifikat. Kada API zovete iz vlastite platforme (Node.js, Python i sl.), ovog problema nema, jer ti jezici šalju UTF-8.
+            </p>
+          </div>
         </section>
 
         {/* Autentikacija */}
@@ -385,6 +476,31 @@ export default function DocsPage() {
           <p className="text-sm text-slate-600 leading-relaxed">
             Upis na blockchain traje nekoliko sekundi, pa postavite vremensko ograničenje zahtjeva na barem 60 sekundi. <strong className="text-slate-900">Sačuvajte</strong> <C>certificateHash</C> i <C>verifyUrl</C> uz zapis u vašoj bazi: hash vam treba za status i poništavanje.
           </p>
+        </section>
+
+        {/* Bulk */}
+        <section className="space-y-4">
+          <H2 id="bulk">Masovno izdavanje</H2>
+          <Endpoint method="POST" path="/api/v1/certificates/bulk" />
+          <p className="text-sm text-slate-600 leading-relaxed">
+            Izdaje do <strong className="text-slate-900">100 certifikata u jednom zahtjevu</strong> i upisuje ih na blockchain jednom transakcijom, pa je brže i jeftinije nego 100 pojedinačnih poziva. Koristite ga kada završi cijela generacija ili kurs.
+          </p>
+          <Table head={['Polje', 'Obavezno', 'Opis']}>
+            <tr><td className="px-4 py-2"><C>recipients</C></td><td className="px-4 py-2">da</td><td className="px-4 py-2 text-slate-600">Lista primalaca (1 do 100). Svaki primalac ima polja <C>studentName</C> i <C>studentEmail</C> (obavezna) te <C>identifier</C>, <C>metadata</C> i <C>expiresAt</C> (opciona), isto kao kod pojedinačnog izdavanja.</td></tr>
+            <tr><td className="px-4 py-2"><C>certificateType</C></td><td className="px-4 py-2">ne</td><td className="px-4 py-2 text-slate-600">Naziv certifikata, isti za sve primaoce u zahtjevu.</td></tr>
+            <tr><td className="px-4 py-2"><C>expiresAt</C></td><td className="px-4 py-2">ne</td><td className="px-4 py-2 text-slate-600">Zajednički datum isteka. Primalac može imati vlastiti <C>expiresAt</C> koji ga zamjenjuje.</td></tr>
+            <tr><td className="px-4 py-2"><C>sendEmail</C></td><td className="px-4 py-2">ne</td><td className="px-4 py-2 text-slate-600"><C>false</C> ako ne želite da šaljemo emailove. Zadano <C>true</C>.</td></tr>
+          </Table>
+          <Code>{bulkRequest}</Code>
+          <Code>{bulkResponse}</Code>
+          <ul className="list-disc list-inside text-sm space-y-2 text-slate-600 pl-2 leading-relaxed">
+            <li><strong className="text-slate-900">Sigurno za ponavljanje.</strong> Certifikati koji već postoje se preskaču i vraćaju s <C>alreadyIssued: true</C>, a izdaju se samo novi. Ako zahtjev padne ili ne znate je li prošao, pošaljite ga ponovo.</li>
+            <li><strong className="text-slate-900">Odgovor ima isti redoslijed kao lista</strong> koju ste poslali (<C>index</C> je mjesto u listi). Sačuvajte <C>certificateHash</C> i <C>verifyUrl</C> za svakog primaoca.</li>
+            <li><strong className="text-slate-900">Greška u jednom primaocu odbija cijeli zahtjev</strong> (status 400), a poruka kaže koji je primalac neispravan, npr. <C>recipients[3].studentEmail</C>. Ništa se tada ne izdaje.</li>
+            <li><strong className="text-slate-900">Emailovi se šalju nakon odgovora</strong>, jedan po jedan, pa za veću grupu mogu stizati i do minut-dvije. Šalju se samo za novoizdate certifikate.</li>
+            <li>Ako testirate iz terminala, spremite JSON u UTF-8 datoteku i pošaljite je s <C>--data-binary @podaci.json</C> (vidi <a href="#brzi-pocetak" className="text-blue-600 hover:underline">Brzi početak</a>), da se č, ć, š, ž i đ ne pokvare.</li>
+            <li>Ograničenje: 10 masovnih zahtjeva u minuti. Za više od 100 primalaca pošaljite više zahtjeva, kao u primjeru iznad.</li>
+          </ul>
         </section>
 
         {/* Lista */}
@@ -460,6 +576,7 @@ export default function DocsPage() {
           <p className="text-sm text-slate-600">Ograničenja po ustanovi:</p>
           <ul className="list-disc list-inside text-sm space-y-1 text-slate-600 pl-2">
             <li>Izdavanje: 60 zahtjeva u minuti</li>
+            <li>Masovno izdavanje: 10 zahtjeva u minuti (do 100 primalaca u svakom)</li>
             <li>Lista i status: 120 zahtjeva u minuti</li>
             <li>Poništavanje: 30 zahtjeva u minuti</li>
           </ul>
@@ -473,6 +590,8 @@ export default function DocsPage() {
           <H2 id="primjeri">Primjeri koda</H2>
           <p className="text-sm text-slate-600">Node.js, izdavanje:</p>
           <Code>{nodeIssue}</Code>
+          <p className="text-sm text-slate-600">Node.js, masovno izdavanje za cijelu listu polaznika:</p>
+          <Code>{nodeBulk}</Code>
           <p className="text-sm text-slate-600">Node.js, dohvat svih certifikata:</p>
           <Code>{nodeList}</Code>
           <p className="text-sm text-slate-600">Node.js, poništavanje:</p>

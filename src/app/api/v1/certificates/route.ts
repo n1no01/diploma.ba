@@ -4,7 +4,7 @@ import { ethers } from 'ethers';
 import { authenticateApiKey } from '@/app/lib/apiKey';
 import { computeCertHash } from '@/app/lib/certHash';
 import { sendCertificateEmail } from '@/app/lib/email';
-import { apiError, CERT_COLUMNS, formatCertificate, guardApiRequest } from '@/app/lib/apiGuard';
+import { apiError, CERT_COLUMNS, containsInvalidText, formatCertificate, guardApiRequest, INVALID_TEXT_MESSAGE } from '@/app/lib/apiGuard';
 import { consumeRateLimit, getClientIp, hitRateLimit, isRateLimited } from '@/app/lib/rateLimit';
 
 const pool = new Pool({
@@ -52,6 +52,7 @@ export async function POST(req: Request) {
     } catch {
       return err('Tijelo zahtjeva mora biti ispravan JSON.', 400);
     }
+    if (containsInvalidText(body)) return err(INVALID_TEXT_MESSAGE, 400);
 
     const studentName = typeof body.studentName === 'string' ? body.studentName.trim() : '';
     const studentEmail = typeof body.studentEmail === 'string' ? body.studentEmail.trim() : '';

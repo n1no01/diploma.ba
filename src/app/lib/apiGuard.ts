@@ -65,3 +65,16 @@ export const CERT_COLUMNS =
   'id, certificate_hash, student_name, student_email, certificate_type, identifier, metadata, status, created_at, expires_at, tx_hash';
 
 export const HASH_RE = /^[0-9a-fA-F]{64}$/;
+
+// Ako klijent pošalje tekst koji nije UTF-8 (npr. Windows terminal u kodnoj strani 1250),
+// č, ć, š, ž, đ stignu kao zamjenski znak U+FFFD i izgube se. Takav zahtjev odbijamo
+// umjesto da spremimo pokvareno ime u certifikat.
+export function containsInvalidText(value: unknown): boolean {
+  if (typeof value === 'string') return value.includes('\uFFFD');
+  if (Array.isArray(value)) return value.some(containsInvalidText);
+  if (value && typeof value === 'object') return Object.values(value).some(containsInvalidText);
+  return false;
+}
+
+export const INVALID_TEXT_MESSAGE =
+  'Zahtjev sadrži neispravne znakove (npr. č, ć, š, ž ili đ prikazani kao �). Pošaljite JSON kodiran kao UTF-8.';
