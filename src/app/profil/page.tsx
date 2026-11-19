@@ -2,6 +2,7 @@
 
 import { useEffect, useState, FormEvent, ChangeEvent } from 'react';
 import Link from 'next/link';
+import { COMPANY, TERMS_VERSION } from '@/app/lib/legal';
 
 interface Account {
   name: string;
@@ -17,6 +18,8 @@ interface Account {
   apiKeyPrefix: string;
   apiKeyCreatedAt: string | null;
   apiKeyLastUsedAt: string | null;
+  termsAcceptedAt: string | null;
+  termsVersion: string;
 }
 
 type Msg = { type: 'ok' | 'err'; text: string } | null;
@@ -577,6 +580,58 @@ export default function ProfilPage() {
           )}
           <Message msg={tfMsg} />
         </section>
+
+        {/* Pravni dokumenti i podaci */}
+        <Card
+          title="Pravni dokumenti i vaši podaci"
+          subtitle="Prihvaćeni uslovi i izvoz svih certifikata ustanove."
+        >
+          <div className="text-xs text-slate-600 space-y-1.5">
+            <p>
+              Uslovi korištenja i Ugovor o obradi podataka:{' '}
+              {acc.termsAcceptedAt ? (
+                <span className="text-slate-900 font-semibold">
+                  prihvaćeno {new Date(acc.termsAcceptedAt).toLocaleDateString('bs-BA')} (verzija {acc.termsVersion || '—'})
+                </span>
+              ) : (
+                <span className="text-amber-700 font-semibold">još nije prihvaćeno</span>
+              )}
+            </p>
+            {acc.termsVersion && acc.termsVersion !== TERMS_VERSION && (
+              <p className="text-amber-700">Dostupna je novija verzija dokumenata ({TERMS_VERSION}).</p>
+            )}
+            <p className="flex flex-wrap gap-x-4 gap-y-1 pt-1">
+              <Link href="/uslovi-koristenja" target="_blank" className="text-blue-600 hover:underline font-semibold">Uslovi korištenja</Link>
+              <Link href="/ugovor-o-obradi-podataka" target="_blank" className="text-blue-600 hover:underline font-semibold">Ugovor o obradi podataka</Link>
+              <Link href="/povjerenje" target="_blank" className="text-blue-600 hover:underline font-semibold">Povjerenje i kontinuitet</Link>
+            </p>
+          </div>
+
+          <div className="mt-5 border-t border-slate-100 pt-5">
+            <p className="text-sm font-semibold text-slate-900">Izvoz podataka</p>
+            <p className="text-xs text-slate-500 mt-1 leading-relaxed">
+              Preuzmite sve certifikate vaše ustanove s kodovima i podacima iz kojih se računa hash. CSV je za Excel, a JSON za
+              nezavisnu provjeru certifikata (vidi stranicu Povjerenje). Preporučujemo da izvoz povremeno sačuvate na svom računaru.
+            </p>
+            <div className="flex flex-wrap gap-3 mt-3">
+              <a href="/api/institution/export?format=csv" className={primaryBtn}>Preuzmi CSV</a>
+              <a href="/api/institution/export?format=json" className={secondaryBtn}>Preuzmi JSON</a>
+            </div>
+          </div>
+
+          <div className="mt-5 border-t border-slate-100 pt-5">
+            <p className="text-xs text-slate-500 leading-relaxed">
+              Želite zatvoriti nalog ili obrisati podatke polaznika?{' '}
+              <a
+                href={`mailto:${COMPANY.email}?subject=${encodeURIComponent('Zahtjev za zatvaranje naloga / brisanje podataka')}&body=${encodeURIComponent('Nalog: ' + acc.email)}`}
+                className="text-blue-600 hover:underline font-semibold"
+              >
+                Pošaljite zahtjev
+              </a>
+              . Prije toga izvezite svoje podatke.
+            </p>
+          </div>
+        </Card>
       </div>
     </main>
   );

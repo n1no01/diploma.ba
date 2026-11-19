@@ -4,6 +4,7 @@ import bcrypt from 'bcryptjs';
 import crypto from 'crypto';
 import { normalizeWebsite } from '@/app/lib/website';
 import { Resend } from 'resend';
+import { TERMS_VERSION } from '@/app/lib/legal';
 
 const pool = new Pool({
   connectionString: process.env.DATABASE_URL,
@@ -24,6 +25,13 @@ export async function POST(request: Request) {
     if (!institutionName || !email || !password) {
       return NextResponse.json(
         { error: 'Sva polja su obavezna.' },
+        { status: 400 }
+      );
+    }
+
+    if (body.acceptTerms !== true) {
+      return NextResponse.json(
+        { error: 'Morate prihvatiti Uslove korištenja i Ugovor o obradi podataka.' },
         { status: 400 }
       );
     }
@@ -51,9 +59,9 @@ export async function POST(request: Request) {
 
     // Upisujemo u bazu uključujući i web stranicu, verifikacioni kod, email_verified = FALSE i is_approved = FALSE
     await client.query(
-      `INSERT INTO institutions (name, email, password_hash, website, verification_token, email_verified, is_approved) 
-       VALUES ($1, $2, $3, $4, $5, FALSE, FALSE)`,
-      [institutionName, email, hashedPassword, website, verificationCode]
+      `INSERT INTO institutions (name, email, password_hash, website, verification_token, email_verified, is_approved, terms_accepted_at, terms_version) 
+       VALUES ($1, $2, $3, $4, $5, FALSE, FALSE, NOW(), $6)`,
+      [institutionName, email, hashedPassword, website, verificationCode, TERMS_VERSION]
     );
 
     client.release();

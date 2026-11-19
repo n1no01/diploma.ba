@@ -35,6 +35,7 @@ declare module "next-auth/jwt" {
   interface JWT {
     role?: string;
     isApproved?: boolean;
+    termsVersion?: string | null;
   }
 }
 
@@ -222,7 +223,7 @@ callbacks: {
         try {
           client = await pool.connect();
           const result = await client.query(
-            'SELECT role, is_approved, name FROM institutions WHERE email = $1',
+            'SELECT role, is_approved, name, terms_version FROM institutions WHERE email = $1',
             [token.email]
           );
           client.release();
@@ -231,6 +232,7 @@ callbacks: {
             token.role = result.rows[0].role || 'USER';
             token.isApproved = result.rows[0].is_approved ?? false;
             token.name = result.rows[0].name;
+            token.termsVersion = result.rows[0].terms_version ?? null;
           }
         } catch (err) {
           if (client) client.release();

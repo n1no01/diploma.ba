@@ -47,6 +47,12 @@ export default function IssueCertificatePage() {
   const [fileName, setFileName] = useState('');
   const [globalExpiresAt, setGlobalExpiresAt] = useState(''); // NOVO: Opcioni zajednički rok za masovni unos
   
+  // Slanje maila: uključeno za pojedinačno, isključeno po defaultu za masovno izdavanje
+  const [sendEmailSingle, setSendEmailSingle] = useState(true);
+  const [sendEmailBulk, setSendEmailBulk] = useState(false);
+  // Linkovi za provjeru nakon izdavanja (za ručno dijeljenje)
+  const [issuedLinks, setIssuedLinks] = useState<{ name: string; email: string; identifier: string; link: string }[]>([]);
+
   const [loading, setLoading] = useState(false);
   const [successMsg, setSuccessMsg] = useState('');
   const [error, setError] = useState('');
@@ -124,8 +130,29 @@ export default function IssueCertificatePage() {
     setCustomFields(updated);
   };
 
+  const verifyLink = (hash: string) => `${window.location.origin}/verifikuj?hash=${hash}`;
+
+  const downloadLinksCsv = () => {
+    // Zaštita od CSV injection u Excelu
+    const cell = (v: string) => {
+      let t = v ?? '';
+      if (/^[=+\-@\t\r]/.test(t)) t = `'${t}`;
+      return `"${t.replace(/"/g, '""')}"`;
+    };
+    const lines = [['Ime', 'Email', 'Identifikator', 'Link za provjeru'].map(cell).join(',')];
+    issuedLinks.forEach((r) => lines.push([r.name, r.email, r.identifier, r.link].map(cell).join(',')));
+    const blob = new Blob(['\uFEFF' + lines.join('\r\n')], { type: 'text/csv;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `diploma-ba-linkovi-${new Date().toISOString().slice(0, 10)}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
+    setIssuedLinks([]);
     setLoading(true);
     setError('');
     setSuccessMsg('');
@@ -188,6 +215,7 @@ export default function IssueCertificatePage() {
             certificateType: finalCertType, 
             recipients,
             metadata: metadataObj,
+            sendEmails: sendEmailBulk,
             expiresAt: globalExpiresAt || null // Proslijeđujemo i globalni rok ako postoji
           }),
         });
@@ -195,7 +223,19 @@ export default function IssueCertificatePage() {
         const data = await res.json();
         if (!res.ok) throw new Error(data.error || 'Greška pri masovnom izdavanju.');
 
-        setSuccessMsg(`Uspješno izdato ${recipients.length} certifikata i poslano na e-mail adrese!`);
+        setIssuedLinks(
+          (data.certificates || []).map((c: { student_name: string; student_email: string; identifier: string | null; certificate_hash: string }) => ({
+            name: c.student_name,
+            email: c.student_email,
+            identifier: c.identifier || '',
+            link: verifyLink(c.certificate_hash),
+          }))
+        );
+        setSuccessMsg(
+          sendEmailBulk
+            ? `Uspješno izdato ${data.certificates?.length ?? recipients.length} certifikata. E-mailovi se šalju u pozadini u manjim serijama, što može potrajati nekoliko minuta. Listu linkova možete preuzeti ispod.`
+            : `Uspješno izdato ${data.certificates?.length ?? recipients.length} certifikata. E-mailovi nisu poslani. Preuzmite listu linkova ispod i podijelite je sami.`
+        );
         setBulkData('');
         setParsedRecipients([]);
         setFileName('');
@@ -212,6 +252,7 @@ export default function IssueCertificatePage() {
             studentEmail,
             identifier,
             expiresAt: expiresAt || null, // NOVO: Proslijeđujemo rok trajanja
+            sendEmail: sendEmailSingle,
             metadata: metadataObj
           }),
         });
@@ -219,7 +260,16 @@ export default function IssueCertificatePage() {
         const data = await res.json();
         if (!res.ok) throw new Error(data.error || 'Greška pri izdavanju certifikata.');
 
-        setSuccessMsg('Certifikat uspješno izdat, zabilježen na Base blockchain mreži i poslan studentu na e-mail!');
+        if (data.certificateHash) {
+          setIssuedLinks([{ name: studentName, email: studentEmail, identifier, link: verifyLink(data.certificateHash) }]);
+        }
+        setSuccessMsg(
+          !sendEmailSingle
+            ? 'Certifikat uspješno izdat i zabilježen na Base blockchain mreži. E-mail nije poslan. Link za provjeru možete preuzeti ispod.'
+            : data.emailSent === false
+              ? 'Certifikat je izdat i zabilježen na Base blockchain mreži, ali slanje e-maila nije uspjelo. Link za provjeru možete preuzeti ispod i poslati ga ručno.'
+              : 'Certifikat uspješno izdat, zabilježen na Base blockchain mreži i poslan polazniku na e-mail!'
+        );
         setStudentName('');
         setStudentEmail('');
         setIdentifier('');
@@ -476,6 +526,30 @@ export default function IssueCertificatePage() {
             )}
           </div>
 
+          <div className="bg-slate-50 border border-slate-200 rounded-xl p-4">
+            <label className="flex items-start gap-3 text-sm text-slate-700 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={isBulk ? sendEmailBulk : sendEmailSingle}
+                onChange={(e) => (isBulk ? setSendEmailBulk(e.target.checked) : setSendEmailSingle(e.target.checked))}
+                className="mt-0.5 h-4 w-4 shrink-0 accent-blue-600 cursor-pointer"
+              />
+              <span>
+                <span className="font-semibold text-slate-900">Pošalji polazniku mail</span> s linkom za provjeru certifikata
+                <span className="block text-xs text-slate-500 mt-1">
+                  {isBulk
+                    ? 'Isključeno po defaultu. Prije slanja provjerite da su sve adrese tačne. Mailovi se šalju u pozadini, u manjim serijama. Ako ne šaljete mailove, nakon izdavanja možete preuzeti listu linkova i podijeliti je sami.'
+                    : 'Ako isključite, certifikat se svejedno izdaje, a link za provjeru možete preuzeti nakon izdavanja.'}
+                </span>
+                {isBulk && sendEmailBulk && (isBulk && bulkModeType === 'file' ? parsedRecipients.length : bulkData.split('\n').filter((l) => l.trim()).length) > 0 && (
+                  <span className="block text-xs text-amber-700 font-medium mt-1">
+                    Bit će poslano {bulkModeType === 'file' ? parsedRecipients.length : bulkData.split('\n').filter((l) => l.trim()).length} mailova.
+                  </span>
+                )}
+              </span>
+            </label>
+          </div>
+
           {error && <p className="text-rose-600 text-xs text-center bg-rose-50 p-3 rounded-xl border border-rose-200 font-medium">{error}</p>}
           {successMsg && <p className="text-emerald-700 text-xs text-center bg-emerald-50 p-3 rounded-xl border border-emerald-200 font-medium">{successMsg}</p>}
 
@@ -486,6 +560,30 @@ export default function IssueCertificatePage() {
           >
             {loading ? 'Slanje na Base blockchain...' : isBulk ? 'Izdaj masovno certifikate' : 'Izdaj pojedinačni certifikat'}
           </button>
+
+          {issuedLinks.length > 0 && (
+            <div className="border border-slate-200 rounded-xl p-4 text-center space-y-2">
+              {issuedLinks.length === 1 ? (
+                <>
+                  <p className="text-xs text-slate-500">Link za provjeru:</p>
+                  <input
+                    readOnly
+                    value={issuedLinks[0].link}
+                    onFocus={(e) => e.currentTarget.select()}
+                    className="w-full text-xs font-mono bg-slate-50 border border-slate-200 rounded-lg p-2 text-slate-700"
+                  />
+                </>
+              ) : null}
+              <button
+                type="button"
+                onClick={downloadLinksCsv}
+                className="px-4 py-2 rounded-xl text-sm font-semibold bg-white border border-slate-300 text-slate-800 hover:bg-slate-50 cursor-pointer"
+              >
+                Preuzmi listu linkova (CSV)
+              </button>
+              <p className="text-[11px] text-slate-400">Lista sadrži ime, e-mail, identifikator i link za provjeru svakog certifikata.</p>
+            </div>
+          )}
         </form>
       </div>
     </main>

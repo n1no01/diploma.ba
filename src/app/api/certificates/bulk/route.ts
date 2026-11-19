@@ -1,4 +1,4 @@
-import { NextResponse } from 'next/server';
+import { NextResponse, after } from 'next/server';
 import { Pool } from 'pg';
 import { ethers } from 'ethers';
 import { sendCertificateEmail } from '../../../lib/email';
@@ -14,6 +14,12 @@ const CONTRACT_ABI = [
 ];
 
 const MAX_BATCH_SIZE = 100; // Ograničenje zbog gas limita na mreži
+
+// Slanje mailova ide u pozadini, nakon odgovora korisniku (vidi after() niže)
+export const maxDuration = 60;
+const MAIL_CHUNK_SIZE = 2; // mailova istovremeno
+const MAIL_CHUNK_PAUSE_MS = 1100; // pauza između serija, da ne udarimo u limit brzine slanja
+const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
 export async function POST(request: Request) {
   let client;
@@ -45,6 +51,8 @@ export async function POST(request: Request) {
     const body = await request.json();
     // DODANO: Izvlačimo i expiresAt iz tijela zahtjeva (može biti zajednički za cijeli batch ili po primatelju, ovdje uzimamo globalni ili opcionalni iz root-a, prilagodi ako ide po primatelju)
     const { certificateType, recipients, metadata, expiresAt } = body;
+    // Slanje mailova je opcionalno; kod masovnog izdavanja je po defaultu ISKLJUČENO
+    const sendEmails = body.sendEmails === true;
 
     if (!certificateType || !recipients || !Array.isArray(recipients) || recipients.length === 0) {
       client.release();
@@ -174,29 +182,42 @@ export async function POST(request: Request) {
         
         const res = await client.query(query, values);
         insertedCertificates.push(res.rows[0]);
-
-        try {
-          await sendCertificateEmail({
-            studentEmail: recipient.email,
-            studentName: recipient.name,
-            institutionName: verifiedInstitutionName,
-            certificateTitle: finalCertType,
-            verifyToken: recipient.certificateHash,
-            certificateId: res.rows[0].id,
-          });
-        } catch (mailErr) {
-          console.error(`Greška pri slanju maila za ${recipient.email}:`, mailErr);
-        }
       }
 
       await client.query('COMMIT');
       client.release();
+
+      // Mailovi se šalju NAKON commita i izvan transakcije: greška u slanju ne utiče na certifikate.
+      // Šalje se u malim serijama u pozadini, nakon što je odgovor već vraćen korisniku.
+      if (sendEmails) {
+        const mailJobs = insertedCertificates.map((c: any) => ({
+          studentEmail: c.student_email as string,
+          studentName: c.student_name as string,
+          institutionName: verifiedInstitutionName as string,
+          certificateTitle: finalCertType as string,
+          verifyToken: c.certificate_hash as string,
+          certificateId: c.id as number,
+        }));
+        after(async () => {
+          let failed = 0;
+          for (let i = 0; i < mailJobs.length; i += MAIL_CHUNK_SIZE) {
+            const chunk = mailJobs.slice(i, i + MAIL_CHUNK_SIZE);
+            const results = await Promise.all(
+              chunk.map((job) => sendCertificateEmail(job).catch(() => ({ success: false })))
+            );
+            failed += results.filter((r) => !r.success).length;
+            if (i + MAIL_CHUNK_SIZE < mailJobs.length) await sleep(MAIL_CHUNK_PAUSE_MS);
+          }
+          if (failed > 0) console.error(`Masovno izdavanje: ${failed}/${mailJobs.length} mailova nije poslano.`);
+        });
+      }
 
       return NextResponse.json({
         success: true,
         message: `Uspješno batch izdato ${insertedCertificates.length} certifikata kroz 1 transakciju!`,
         certificates: insertedCertificates,
         txHash,
+        emailsQueued: sendEmails ? insertedCertificates.length : 0,
       });
 
     } catch (dbError) {

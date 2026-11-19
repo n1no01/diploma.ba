@@ -43,6 +43,8 @@ export async function POST(req: Request) {
     const body = await req.json();
     // DODANO: Izvlačimo i expiresAt iz tijela zahtjeva
     const { studentName, studentEmail, certificateType, identifier, metadata, expiresAt } = body;
+    // Slanje maila je opcionalno; kod pojedinačnog izdavanja je po defaultu uključeno
+    const sendEmail = body.sendEmail !== false;
 
     if (!studentEmail || !studentName) {
       client.release();
@@ -125,8 +127,10 @@ export async function POST(req: Request) {
     const result = await client.query(queryText, values);
     client.release();
 
-    try {
-      await sendCertificateEmail({
+    // Mail se šalje nakon što je certifikat već sačuvan; greška u slanju ne utiče na certifikat
+    let emailSent = false;
+    if (sendEmail) try {
+      const mail = await sendCertificateEmail({
         studentEmail: studentEmail.trim(), 
         studentName: studentName.trim(), 
         institutionName,
@@ -134,6 +138,7 @@ export async function POST(req: Request) {
         verifyToken: certificateHash,
         certificateId: result.rows[0].id,
       });
+      emailSent = mail.success;
     } catch (emailErr) {
       console.error('Greška pri slanju emaila:', emailErr);
     }
@@ -143,6 +148,8 @@ export async function POST(req: Request) {
       message: 'Certifikat uspješno izdat i zaveden na blockchain!',
       certificateId: result.rows[0].id,
       txHash,
+      certificateHash,
+      emailSent,
     });
 
   } catch (error: any) {

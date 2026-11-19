@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 import { getToken } from "next-auth/jwt";
+import { TERMS_VERSION } from "@/app/lib/legal";
 
 export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
@@ -11,9 +12,17 @@ export async function middleware(request: NextRequest) {
     secret: process.env.NEXTAUTH_SECRET 
   });
 
-  // 2. Zaštita za /portal i /izdavanje (bilo koji ulogovani korisnik)
-  if ((pathname.startsWith("/portal") || pathname.startsWith("/izdavanje") || pathname.startsWith("/profil")) && !token) {
+  // 2. Zaštita za /portal, /izdavanje i /profil (bilo koji ulogovani korisnik)
+  const isAccountArea =
+    pathname.startsWith("/portal") || pathname.startsWith("/izdavanje") || pathname.startsWith("/profil");
+
+  if ((isAccountArea || pathname.startsWith("/prihvati-uslove")) && !token) {
     return NextResponse.redirect(new URL("/login", request.url));
+  }
+
+  // 2b. Uslovi korištenja: ustanova mora prihvatiti trenutnu verziju (admin je izuzet)
+  if (isAccountArea && token && token.role !== "ADMIN" && token.termsVersion !== TERMS_VERSION) {
+    return NextResponse.redirect(new URL("/prihvati-uslove", request.url));
   }
 
   // 3. Zaštita za /admin (SAMO korisnici sa ulogom ADMIN)
@@ -32,5 +41,5 @@ export async function middleware(request: NextRequest) {
 }
 
 export const config = {
-  matcher: ["/portal/:path*", "/izdavanje/:path*", "/profil/:path*", "/admin/:path*"],
+  matcher: ["/portal/:path*", "/izdavanje/:path*", "/profil/:path*", "/admin/:path*", "/prihvati-uslove/:path*"],
 };

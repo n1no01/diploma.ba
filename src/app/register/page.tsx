@@ -10,6 +10,7 @@ export default function RegisterPage() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [website, setWebsite] = useState('');
+  const [acceptTerms, setAcceptTerms] = useState(false);
   
   // Nova stanja za verifikacioni korak
   const [step, setStep] = useState<'register' | 'verify'>('register');
@@ -28,7 +29,7 @@ export default function RegisterPage() {
       const res = await fetch('/api/auth/register', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name, email, password, website }),
+        body: JSON.stringify({ name, email, password, website, acceptTerms }),
       });
 
       const data = await res.json();
@@ -144,6 +145,27 @@ export default function RegisterPage() {
               />
             </div>
 
+            <label className="flex items-start gap-3 text-xs text-slate-600 leading-relaxed cursor-pointer">
+              <input
+                type="checkbox"
+                checked={acceptTerms}
+                onChange={(e) => setAcceptTerms(e.target.checked)}
+                className="mt-0.5 h-4 w-4 shrink-0 accent-blue-600 cursor-pointer"
+                required
+              />
+              <span>
+                Prihvatam{' '}
+                <Link href="/uslovi-koristenja" target="_blank" className="text-blue-600 hover:underline font-medium">
+                  Uslove korištenja
+                </Link>{' '}
+                i{' '}
+                <Link href="/ugovor-o-obradi-podataka" target="_blank" className="text-blue-600 hover:underline font-medium">
+                  Ugovor o obradi podataka
+                </Link>{' '}
+                i potvrđujem da sam ovlašten/a da registrujem ustanovu.
+              </span>
+            </label>
+
             {error && (
               <p className="text-rose-600 text-xs text-center bg-rose-50 p-3 rounded-xl border border-rose-200 font-medium">
                 {error}
@@ -152,7 +174,7 @@ export default function RegisterPage() {
 
             <button
               type="submit"
-              disabled={loading}
+              disabled={loading || !acceptTerms}
               className="w-full py-3.5 rounded-xl font-semibold bg-blue-600 hover:bg-blue-700 text-white text-sm transition shadow-md shadow-blue-600/20 cursor-pointer disabled:opacity-50 mt-2"
             >
               {loading ? 'Slanje koda...' : 'Nastavi i pošalji kod'}

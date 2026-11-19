@@ -5,7 +5,7 @@ export default function Footer() {
     <footer className="w-full border-t border-slate-200 bg-white/80 backdrop-blur-md py-8 mt-20">
       <div className="max-w-7xl mx-auto px-6 flex flex-col sm:flex-row items-center justify-between gap-4 text-xs text-slate-500">
         <p>© 2026 diploma.ba. Sva prava zadržana.</p>
-        <div className="flex items-center gap-6">
+        <div className="flex flex-wrap items-center justify-center gap-x-6 gap-y-2">
          
           <a
             href="https://www.linkedin.com/company/diploma-ba"
@@ -29,6 +29,15 @@ export default function Footer() {
           </Link>
           <Link href="/politika-privatnosti" className="hover:text-slate-900 transition">
             Politika privatnosti
+          </Link>
+          <Link href="/uslovi-koristenja" className="hover:text-slate-900 transition">
+            Uslovi korištenja
+          </Link>
+          <Link href="/ugovor-o-obradi-podataka" className="hover:text-slate-900 transition">
+            Obrada podataka
+          </Link>
+          <Link href="/povjerenje" className="hover:text-slate-900 transition">
+            Povjerenje
           </Link>
         </div>
       </div>

@@ -73,6 +73,9 @@ async function generatePdfBuffer(certData: {
   });
 }
 
+const escapeHtml = (v: string) =>
+  v.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+
 export async function sendCertificateEmail({
   studentEmail,
   studentName,
@@ -80,6 +83,10 @@ export async function sendCertificateEmail({
   certificateTitle,
   verifyToken: certificateHash,
 }: SendCertificateEmailParams) {
+  const rawInstitutionName = institutionName.replace(/[\r\n]+/g, ' ');
+  studentName = escapeHtml(studentName);
+  institutionName = escapeHtml(institutionName);
+  certificateTitle = escapeHtml(certificateTitle);
   const verifyUrl = `${process.env.APP_URL}/verifikuj?hash=${certificateHash}`;
 
   try {
@@ -87,7 +94,7 @@ export async function sendCertificateEmail({
     const data = await resend.emails.send({
       from: 'diploma.ba <noreply@diploma.ba>',
       to: [studentEmail],
-      subject: `Izdana vam je zvanična diploma/certifikat - ${institutionName}`,
+      subject: `Izdan vam je certifikat - ${rawInstitutionName}`,
       html: `
         <div style="font-family: Arial, sans-serif; background-color: #f8fafc; color: #1e293b; padding: 40px; border-radius: 16px; max-width: 600px; margin: 0 auto; border: 1px solid #e2e8f0;">
           <h2 style="color: #0284c7; margin-bottom: 20px;">Poštovani/a ${studentName},</h2>

@@ -20,6 +20,7 @@ export async function GET() {
       `SELECT i.name, i.email, i.website, i.logo_url, i.is_approved, i.created_at,
               i.two_factor_enabled, i.password_hash,
               i.api_key_prefix, i.api_key_created_at, i.api_key_last_used_at,
+              i.terms_accepted_at, i.terms_version,
               (SELECT COUNT(*)::int FROM certificates c WHERE c.institution_id = i.id) AS certificates_total,
               (SELECT COUNT(*)::int FROM certificates c WHERE c.institution_id = i.id AND c.status = 'revoked') AS certificates_revoked
        FROM institutions i
@@ -45,6 +46,8 @@ export async function GET() {
       apiKeyPrefix: row.api_key_prefix || '',
       apiKeyCreatedAt: row.api_key_created_at,
       apiKeyLastUsedAt: row.api_key_last_used_at,
+      termsAcceptedAt: row.terms_accepted_at,
+      termsVersion: row.terms_version || '',
       certificatesTotal: row.certificates_total,
       certificatesRevoked: row.certificates_revoked,
     });
