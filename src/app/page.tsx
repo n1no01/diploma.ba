@@ -262,7 +262,7 @@ export default function Home() {
             'url': 'https://diploma.ba',
             'description':
               'diploma.ba pomaže akademijama, centrima za obuku i školama stranih jezika da izdaju digitalne certifikate.',
-            // 'sameAs': ['https://www.linkedin.com/company/...', 'https://x.com/...'], // dodaj svoje stvarne profile
+              'sameAs': ['https://www.linkedin.com/company/diploma-ba']
           }),
         }}
       />
