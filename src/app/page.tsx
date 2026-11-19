@@ -11,7 +11,6 @@ interface FAQItem {
 export default function Home() {
   const [stats, setStats] = useState({ totalCertificates: 0, totalInstitutions: 0 });
   const [copied, setCopied] = useState(false);
-  const [openFaq, setOpenFaq] = useState<number | null>(null);
 
   const DONATION_ADDRESS = "0xECfD49F28c2437023ED9A1978Eb58D878942f2De";
 
@@ -19,10 +18,6 @@ export default function Home() {
     navigator.clipboard.writeText(DONATION_ADDRESS);
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
-  };
-
-  const toggleFaq = (index: number) => {
-    setOpenFaq(openFaq === index ? null : index);
   };
 
   useEffect(() => {
@@ -132,25 +127,26 @@ export default function Home() {
           <p className="text-slate-600 text-sm mt-2">Svaki certifikat ima jedinstveni kod. Nema pretrage po imenu, podaci se vide samo uz taj kod.</p>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-          <article className="p-6 bg-white rounded-2xl border border-slate-200 shadow-sm">
+        <ol className="grid grid-cols-1 md:grid-cols-3 gap-8 list-none p-0 m-0">
+          <li className="p-6 bg-white rounded-2xl border border-slate-200 shadow-sm">
             <span className="text-blue-600 font-bold text-lg">01. Otvori link iz maila</span>
             <p className="text-sm text-slate-600 mt-2">Polaznik dobija verifikacijski link u e-mailu i može ga proslijediti poslodavcu.</p>
-          </article>
-          <article className="p-6 bg-white rounded-2xl border border-slate-200 shadow-sm">
+          </li>
+          <li className="p-6 bg-white rounded-2xl border border-slate-200 shadow-sm">
             <span className="text-blue-600 font-bold text-lg">02. Ili zalijepi kod</span>
             <p className="text-sm text-slate-600 mt-2">Ako nemaš link, upiši kod certifikata na stranici Provjera. Registracija nije potrebna.</p>
-          </article>
-          <article className="p-6 bg-white rounded-2xl border border-slate-200 shadow-sm">
+          </li>
+          <li className="p-6 bg-white rounded-2xl border border-slate-200 shadow-sm">
             <span className="text-blue-600 font-bold text-lg">03. Odmah vidiš rezultat</span>
             <p className="text-sm text-slate-600 mt-2">Vidiš ko je izdao certifikat, kome, kada i da li je još važeći. Podaci se uparuju s javnim zapisom na blockchainu.</p>
-          </article>
-        </div>
+          </li>
+        </ol>
       </section>
 
       {/* Feature Grid */}
-      <section id="prednosti" className="grid grid-cols-1 md:grid-cols-3 gap-6 mt-24 text-left w-full scroll-mt-24">
-        <article className="p-8 rounded-3xl bg-white border border-slate-200 shadow-sm">
+      <section id="prednosti" className="w-full mt-24 text-left scroll-mt-24">
+        <ul className="grid grid-cols-1 md:grid-cols-3 gap-6 list-none p-0 m-0">
+        <li className="p-8 rounded-3xl bg-white border border-slate-200 shadow-sm">
           <div className="w-10 h-10 rounded-xl bg-blue-50 text-blue-600 border border-blue-200 flex items-center justify-center font-bold mb-5">
             01
           </div>
@@ -158,9 +154,9 @@ export default function Home() {
           <p className="text-sm text-slate-600 leading-relaxed">
             Svaki certifikat ima kriptografski otisak. Ako se podaci promijene, provjera to odmah pokaže.
           </p>
-        </article>
+        </li>
 
-        <article className="p-8 rounded-3xl bg-white border border-slate-200 shadow-sm">
+        <li className="p-8 rounded-3xl bg-white border border-slate-200 shadow-sm">
           <div className="w-10 h-10 rounded-xl bg-cyan-50 text-cyan-600 border border-cyan-200 flex items-center justify-center font-bold mb-5">
             02
           </div>
@@ -168,9 +164,9 @@ export default function Home() {
           <p className="text-sm text-slate-600 leading-relaxed">
             Bez mailova i telefoniranja školi. Poslodavac provjeri certifikat za nekoliko sekundi.
           </p>
-        </article>
+        </li>
 
-        <article className="p-8 rounded-3xl bg-white border border-slate-200 shadow-sm">
+        <li className="p-8 rounded-3xl bg-white border border-slate-200 shadow-sm">
           <div className="w-10 h-10 rounded-xl bg-emerald-50 text-emerald-600 border border-emerald-200 flex items-center justify-center font-bold mb-5">
             03
           </div>
@@ -178,7 +174,8 @@ export default function Home() {
           <p className="text-sm text-slate-600 leading-relaxed">
             Nema pretrage po imenu. Certifikat se otvara samo uz jedinstveni kod koji dijeli polaznik.
           </p>
-        </article>
+        </li>
+        </ul>
       </section>
 
       {/* SEKCIJA ZA DONACIJE */}
@@ -232,37 +229,43 @@ export default function Home() {
         </div>
 
         <div className="max-w-3xl mx-auto space-y-4">
-          {faqData.map((faq, index) => {
-            const isOpen = openFaq === index;
-            return (
-              <article
-                key={index}
-                className="bg-white rounded-2xl border border-slate-200 overflow-hidden shadow-2xs transition-all duration-200"
-              >
-                <button
-                  onClick={() => toggleFaq(index)}
-                  className="w-full p-6 text-left font-bold text-slate-900 flex justify-between items-center gap-4 hover:bg-slate-50/80 transition cursor-pointer"
+          {faqData.map((faq, index) => (
+            <details
+              key={index}
+              className="group bg-white rounded-2xl border border-slate-200 overflow-hidden shadow-2xs transition-all duration-200"
+            >
+              <summary className="w-full p-6 text-left font-bold text-slate-900 flex justify-between items-center gap-4 hover:bg-slate-50/80 transition cursor-pointer list-none [&::-webkit-details-marker]:hidden">
+                <h3 className="text-base leading-snug">{faq.question}</h3>
+                <span
+                  aria-hidden="true"
+                  className="text-xl text-blue-600 font-mono transition-transform duration-200 shrink-0 group-open:rotate-180"
                 >
-                  <span className="text-base leading-snug">{faq.question}</span>
-                  <span
-                    className={`text-xl text-blue-600 font-mono transition-transform duration-200 shrink-0 ${
-                      isOpen ? 'rotate-180' : ''
-                    }`}
-                  >
-                    ↓
-                  </span>
-                </button>
-
-                {isOpen && (
-                  <div className="px-6 pb-6 text-sm text-slate-600 leading-relaxed border-t border-slate-100 pt-4 bg-slate-50/40">
-                    {faq.answer}
-                  </div>
-                )}
-              </article>
-            );
-          })}
+                  ↓
+                </span>
+              </summary>
+              <div className="px-6 pb-6 text-sm text-slate-600 leading-relaxed border-t border-slate-100 pt-4 bg-slate-50/40">
+                {faq.answer}
+              </div>
+            </details>
+          ))}
         </div>
       </section>
+
+      {/* JSON-LD Schema.org Organization (brand identity for AI engines) */}
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{
+          __html: JSON.stringify({
+            '@context': 'https://schema.org',
+            '@type': 'Organization',
+            'name': 'diploma.ba',
+            'url': 'https://diploma.ba',
+            'description':
+              'diploma.ba pomaže akademijama, centrima za obuku i školama stranih jezika da izdaju digitalne certifikate.',
+            // 'sameAs': ['https://www.linkedin.com/company/...', 'https://x.com/...'], // dodaj svoje stvarne profile
+          }),
+        }}
+      />
 
       {/* JSON-LD Schema.org FAQPage za AEO/SEO */}
       <script
